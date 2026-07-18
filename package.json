@@ -1,0 +1,78 @@
+{
+  "name": "sewt",
+  "version": "1.0.0",
+  "description": "Enterprise Web Worker framework with GPU compute — thread pools, work-stealing, dependencies, health checks, WebGPU shaders, and framework adapters for Preact/React/Zustand/Signals.",
+  "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./types.js",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "types": "./types.js"
+    },
+    "./thread": "./thread.js",
+    "./pool": "./pool.js",
+    "./gpu": "./gpu.js",
+    "./gpu-helpers": "./gpu-helpers.js",
+    "./gpu-chains": "./gpu-chains.js",
+    "./gpu-special": "./gpu-special.js",
+    "./gpu-hooks": "./gpu-hooks.js",
+    "./gpu-adapters": "./gpu-adapters.js",
+    "./hooks": "./hooks.js",
+    "./adapters": "./adapters.js",
+    "./factory": "./factory.js",
+    "./error": "./error.js",
+    "./metrix": "./metrix.js",
+    "./serializer": "./serializer.js",
+    "./shaders": "./shaders.js",
+    "./types": "./types.js"
+  },
+  "keywords": [
+    "web-worker",
+    "thread-pool",
+    "webgpu",
+    "compute-shader",
+    "gpu",
+    "parallel",
+    "work-stealing",
+    "preact",
+    "react",
+    "zustand",
+    "signals"
+  ],
+  "author": "Peach LLC",
+  "license": "MIT",
+  "files": [
+    "index.js",
+    "thread.js",
+    "pool.js",
+    "gpu.js",
+    "gpu-helpers.js",
+    "gpu-chains.js",
+    "gpu-special.js",
+    "gpu-hooks.js",
+    "gpu-adapters.js",
+    "hooks.js",
+    "adapters.js",
+    "factory.js",
+    "error.js",
+    "metrix.js",
+    "serializer.js",
+    "shaders.js",
+    "types.js"
+  ],
+  "peerDependencies": {
+    "preact": ">=10.0.0",
+    "typescript": "^5"
+  },
+  "peerDependenciesMeta": {
+    "preact": {
+      "optional": true
+    }
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}
