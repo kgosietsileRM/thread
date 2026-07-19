@@ -1,5 +1,5 @@
 {
-  "name": "thread",
+  "name": "@nadrif/thread",
   "version": "0.1.0",
   "author": "Nadrif LLC",
   "main": "./index.js",
