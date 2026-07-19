@@ -119,13 +119,23 @@ function _createBrowserWorker(scriptSource, { type, imports }) {
 function _createNodeWorker(scriptSource, { type, imports }) {
   let WorkerClass;
 
-  // Try node:worker_threads first
+  // Try node:worker_threads first (Node.js with globalThis.require)
   try {
     if (typeof globalThis.require === 'function') {
       const wt = globalThis.require('node:worker_threads');
       WorkerClass = wt.Worker;
     }
   } catch { /* ignore */ }
+
+  // Fallback: try bare require (Bun exposes require but not on globalThis)
+  if (!WorkerClass) {
+    try {
+      if (typeof require === 'function') {
+        const wt = require('node:worker_threads');
+        WorkerClass = wt.Worker;
+      }
+    } catch { /* ignore */ }
+  }
 
   if (!WorkerClass) {
     throw new Error('thread: worker_threads module is not available');

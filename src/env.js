@@ -96,6 +96,8 @@ const hasGPU = (() => {
   if (typeof navigator !== 'undefined' && navigator.gpu) return true;
   // Deno
   if (typeof globalThis.Deno !== 'undefined' && globalThis.Deno?.gpu) return true;
+  // Bun — check built-in gpu API
+  if (typeof globalThis.Bun !== 'undefined' && globalThis.Bun?.gpu) return true;
   return false;
 })();
 

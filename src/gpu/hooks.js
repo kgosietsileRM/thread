@@ -14,7 +14,13 @@ import { getHooks } from '../config/index.js';
 import { GPUCompute } from './gpu.js';
 
 // Resolve framework hooks at module load time (top-level await)
-const { useRef, useState, useEffect, useCallback, useMemo } = await getHooks();
+let useRef, useState, useEffect, useCallback, useMemo;
+try {
+  ({ useRef, useState, useEffect, useCallback, useMemo } = await getHooks());
+} catch {
+  const _stub = () => { throw new Error('[thread] No framework installed. Install preact or react to use GPU hooks.'); };
+  useRef = _stub; useState = _stub; useEffect = _stub; useCallback = _stub; useMemo = _stub;
+}
 
 // ---------------------------------------------------------------------------
 // useGPU

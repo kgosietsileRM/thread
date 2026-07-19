@@ -121,6 +121,7 @@ const KNOWN_KEYS = new Set([
 const KNOWN_GPU_KEYS = new Set([
   'workgroupSize', 'maxBufferSize', 'entryPoint', 'powerPreference',
   'cpuFallback', 'adapterOptions', 'shader',
+  'bunWebgpu', 'fallbackAdapter',
 ]);
 
 /** @type {Set<string>} Known keys inside the `thread` section. */
@@ -174,6 +175,8 @@ export const DEFAULTS = Object.freeze({
     cpuFallback: null,
     adapterOptions: {},
     shader: null,
+    bunWebgpu: true,
+    fallbackAdapter: true,
   }),
 
   thread: Object.freeze({

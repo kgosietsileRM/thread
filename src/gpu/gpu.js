@@ -87,7 +87,7 @@ export class GPUCompute {
     this._cpuFallback = options.cpuFallback || null;
 
     /** @type {boolean} Whether WebGPU is available. */
-    this._available = gpuEnv.sync || (typeof navigator !== 'undefined' && !!navigator.gpu);
+    this._available = gpuEnv.sync;
 
     /** @type {'idle'|'running'|'error'|'unavailable'} Current status. */
     this._status = this._available ? 'idle' : 'unavailable';
@@ -192,13 +192,20 @@ export class GPUCompute {
   async _compileShader(shaderSource, entryPoint, pipelineName) {
     const shaderModule = this._device.createShaderModule({ code: shaderSource });
 
-    const compilationInfo = await shaderModule.getCompilationInfo();
-    const errors = compilationInfo.messages.filter((m) => m.type === 'error');
-    if (errors.length > 0) {
-      const details = errors.map((e) => `  line ${e.lineNum}: ${e.message}`).join('\n');
-      throw new GPUComputeError(
-        `Shader "${pipelineName}" compilation failed:\n${details}`,
-      );
+    // getCompilationInfo() is not implemented in all runtimes (e.g. bun-webgpu).
+    // Wrap in try/catch — shader errors will surface at pipeline creation time.
+    try {
+      const compilationInfo = await shaderModule.getCompilationInfo();
+      const errors = compilationInfo.messages.filter((m) => m.type === 'error');
+      if (errors.length > 0) {
+        const details = errors.map((e) => `  line ${e.lineNum}: ${e.message}`).join('\n');
+        throw new GPUComputeError(
+          `Shader "${pipelineName}" compilation failed:\n${details}`,
+        );
+      }
+    } catch (err) {
+      if (err instanceof GPUComputeError) throw err;
+      // Runtime doesn't support getCompilationInfo() — continue
     }
 
     return this._device.createComputePipeline({
@@ -462,7 +469,13 @@ export class GPUCompute {
     }
 
     if (specialDef && !opDef) {
-      return runSpecial(this, name, specialDef, input);
+      try {
+        return await runSpecial(this, name, specialDef, input);
+      } catch (err) {
+        this._status = 'idle';
+        if (err instanceof GPUComputeError) throw err;
+        throw new GPUComputeError(`Special op "${name}" failed: ${err.message}`, err);
+      }
     }
 
     if (!opDef) {
@@ -509,6 +522,18 @@ export class GPUCompute {
 
     if (!this._available && fn) {
       return fn(computeInput);
+    }
+
+    // If we have a CPU fallback, try GPU first and fall back on error
+    // (handles runtimes where adapter exists but dispatch fails, e.g. Dawn/DXC issues)
+    if (fn) {
+      try {
+        return await this.compute(computeInput);
+      } catch (err) {
+        this._status = 'idle';
+        console.warn(`[GPUCompute] GPU dispatch failed for "${name}", using CPU fallback: ${err.message}`);
+        return fn(computeInput);
+      }
     }
 
     return this.compute(computeInput);

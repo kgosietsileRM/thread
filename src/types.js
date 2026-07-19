@@ -69,7 +69,7 @@
  * @property {((state: any) => any | Promise<any>) | null} [setup]
  *   Runs once when the worker starts.  Return value is stored as `state`
  *   and passed as the first argument to every `exec` call.
- * @property {(state: any, ...args: any[], ctx: ThreadContext) => any | Promise<any>} exec
+ * @property {(state: any, ...args: any[]) => any | Promise<any>} exec
  *   Runs on every task invocation.  Receives `state` (from `setup`),
  *   then any arguments supplied to `thread.run(...)`, and finally a
  *   `ctx` context object for reporting progress and logs.

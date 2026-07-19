@@ -1093,4 +1093,4 @@ function SearchIndexer({ documents }) {
 
 ## License
 
-MIT — Peach LLC
+MIT — Nadrif LLC

@@ -53,6 +53,11 @@
 import { mergeWithDefaults, validateConfig } from './schema.js';
 import { resolveHooks } from './frameworks.js';
 import { getAdapter } from './adapters.js';
+
+// Re-export for consumers who need direct access
+export { mergeWithDefaults, validateConfig } from './schema.js';
+export { resolveHooks } from './frameworks.js';
+export { getAdapter } from './adapters.js';
 import { loadConfigFile, loadConfigWithOverride, setProgrammaticConfig, getProgrammaticConfig, clearProgrammaticConfig } from './env.js';
 
 // ---------------------------------------------------------------------------

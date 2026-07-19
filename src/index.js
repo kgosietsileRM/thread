@@ -363,15 +363,38 @@ import {
     createGPUSignalBinder,
     createGPUStoreBinder,
 } from "./gpu/adapters.js";
-import { buildShader, BUILT_IN_OPS, BUILT_IN_OP_NAMES, SPECIAL_OPS } from "./gpu/shaders.js";
+import {
+    buildShader,
+    BUILT_IN_OPS,
+    BUILT_IN_OP_NAMES,
+    SPECIAL_OPS
+} from "./gpu/shaders.js";
 import { Metrics } from "./metrix";
 import { ThreadPool } from "./pool";
 import { Serializer } from "./serializer";
 import { Thread } from "./thread";
-import { defineConfig, getConfig, setConfig } from "./config.js";
+import { defineConfig,
+    getConfig,
+    setConfig,
+    DEFAULTS,
+    FRAMEWORKS,
+    STATE_MANAGERS,
+    mergeWithDefaults,
+    validateConfig,
+    resolveHooks,
+    getAdapter } from "./config.js";
 import { env } from "./env.js";
-import { createWorker as createPlatformWorker, terminateWorker, supportsWorkers, workerInfo } from "./worker-factory.js";
-import { gpuEnv, isGPUAvailable, requestGPUAdapter, requestGPUDevice } from "./gpu/env.js";
+import {
+    createWorker as createPlatformWorker,
+    terminateWorker,
+    supportsWorkers,
+    workerInfo
+} from "./worker-factory.js";
+import { gpuEnv,
+    isGPUAvailable,
+    requestGPUAdapter,
+    requestGPUDevice
+} from "./gpu/env.js";
 
 export {
   // Errors
@@ -408,6 +431,7 @@ export {
   buildShader,
   BUILT_IN_OPS,
   BUILT_IN_OP_NAMES,
+  SPECIAL_OPS,
   // Hooks (Preact / React)
   useThread,
   usePool,
@@ -433,6 +457,13 @@ export {
   defineConfig,
   getConfig,
   setConfig,
+  DEFAULTS,
+  FRAMEWORKS,
+  STATE_MANAGERS,
+  mergeWithDefaults,
+  validateConfig,
+  resolveHooks,
+  getAdapter,
   // Environment
   env,
   createPlatformWorker,
@@ -480,6 +511,7 @@ export default {
   buildShader,
   BUILT_IN_OPS,
   BUILT_IN_OP_NAMES,
+  SPECIAL_OPS,
   // Hooks
   useThread,
   usePool,
@@ -505,6 +537,13 @@ export default {
   defineConfig,
   getConfig,
   setConfig,
+  DEFAULTS,
+  FRAMEWORKS,
+  STATE_MANAGERS,
+  mergeWithDefaults,
+  validateConfig,
+  resolveHooks,
+  getAdapter,
   // Environment
   env,
   createPlatformWorker,

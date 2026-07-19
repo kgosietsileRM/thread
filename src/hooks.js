@@ -42,7 +42,13 @@ import { Thread } from "./thread.js";
 import { ThreadPool } from "./pool.js";
 
 // Resolve framework hooks at module load time (top-level await)
-const { useState, useEffect, useRef, useCallback, useMemo } = await getHooks();
+let useState, useEffect, useRef, useCallback, useMemo;
+try {
+  ({ useState, useEffect, useRef, useCallback, useMemo } = await getHooks());
+} catch {
+  const _stub = () => { throw new Error('[thread] No framework installed. Install preact or react to use hooks.'); };
+  useState = _stub; useEffect = _stub; useRef = _stub; useCallback = _stub; useMemo = _stub;
+}
 
 // ---------------------------------------------------------------------------
 // useThread

@@ -1,11 +1,13 @@
 {
   "name": "thread",
-  "version": "1.2.0",
-  "description": "Enterprise Web Worker & GPU Compute framework — cross-platform thread pools, work-stealing, WebGPU shaders, with framework adapters for Preact/React/Svelte/Vue/Solid and state managers Zustand/Redux/Jotai/MobX/Signals.",
-  "type": "module",
-  "main": "./src/index.js",
-  "module": "./src/index.js",
-  "types": "./src/types.js",
+  "version": "0.1.0",
+  "author": "Nadrif LLC",
+  "main": "./index.js",
+  "module": "./index.js",
+  "peerDependencies": {
+    "preact": ">=10.0.0",
+    "react": ">=18.0.0"
+  },
   "exports": {
     ".": {
       "browser": {
@@ -77,6 +79,15 @@
     "./workers": "./src/worker-factory.js",
     "./types": "./src/types.js"
   },
+  "description": "Enterprise Web Worker & GPU Compute framework — cross-platform thread pools, work-stealing, WebGPU shaders, with framework adapters for Preact/React/Svelte/Vue/Solid and state managers Zustand/Redux/Jotai/MobX/Signals.",
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0",
+    "deno": ">=1.25.0"
+  },
+  "files": [
+    "src/"
+  ],
   "keywords": [
     "web-worker",
     "thread-pool",
@@ -101,20 +112,7 @@
     "edge",
     "cloudflare-workers"
   ],
-  "author": "Peach LLC",
   "license": "MIT",
-  "files": [
-    "src/"
-  ],
-  "engines": {
-    "node": ">=18.0.0",
-    "bun": ">=1.0.0",
-    "deno": ">=1.25.0"
-  },
-  "peerDependencies": {
-    "preact": ">=10.0.0",
-    "react": ">=18.0.0"
-  },
   "peerDependenciesMeta": {
     "preact": {
       "optional": true
@@ -122,5 +120,14 @@
     "react": {
       "optional": true
     }
+  },
+  "trustedDependencies": [
+    "webgpu"
+  ],
+  "type": "module",
+  "types": "./src/types.js",
+  "dependencies": {},
+  "optionalDependencies": {
+    "bun-webgpu": "^0.1.7"
   }
 }

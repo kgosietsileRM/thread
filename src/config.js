@@ -48,5 +48,5 @@
  */
 
 export { defineConfig } from './config/define.js';
-export { getConfig, setConfig, getHooks, getResolvedAdapter } from './config/index.js';
+export { getConfig, setConfig, getHooks, getResolvedAdapter, mergeWithDefaults, validateConfig, resolveHooks, getAdapter } from './config/index.js';
 export { DEFAULTS, FRAMEWORKS, STATE_MANAGERS } from './config/schema.js';

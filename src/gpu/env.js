@@ -66,7 +66,7 @@ async function _checkGPU() {
   // --- Browser / Edge ---
   if (typeof navigator !== 'undefined' && navigator.gpu) {
     try {
-      const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'low-power' });
+      const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
       return !!adapter;
     } catch {
       return false;
@@ -76,14 +76,14 @@ async function _checkGPU() {
   // --- Deno ---
   if (env.isDeno && typeof Deno !== 'undefined' && Deno.gpu) {
     try {
-      const adapter = await Deno.gpu.requestAdapter({ powerPreference: 'low-power' });
+      const adapter = await Deno.gpu.requestAdapter({ powerPreference: 'high-performance' });
       return !!adapter;
     } catch {
       return false;
     }
   }
 
-  // --- Node.js — try dynamic imports of WebGPU bindings ---
+  // --- Node.js / Bun — try dynamic imports of WebGPU bindings ---
   if (env.isNode || env.isBun) {
     return await _checkNodeGPU();
   }
@@ -118,6 +118,15 @@ async function _checkNodeGPU() {
     try {
       if (typeof globalThis.Bun?.gpu !== 'undefined') return true;
     } catch { /* ignore */ }
+
+    // Try bun-webgpu (Dawn FFI bindings for Bun)
+    try {
+      const mod = await import('bun-webgpu');
+      if (mod && typeof mod.setupGlobals === 'function') {
+        mod.setupGlobals();
+        return typeof navigator !== 'undefined' && !!navigator.gpu;
+      }
+    } catch { /* not installed */ }
   }
 
   return false;
@@ -127,15 +136,17 @@ async function _checkNodeGPU() {
  * Synchronous GPU availability check.
  *
  * Returns `true` if the `navigator.gpu` API is present in the global
- * scope.  This is a fast, synchronous check — it does NOT verify that
- * a GPU adapter can actually be obtained.  Use {@link isGPUAvailable}
- * for a reliable async check.
+ * scope, or if `Bun.gpu` is available (Bun's experimental built-in).
+ * This is a fast, synchronous check — it does NOT verify that a GPU
+ * adapter can actually be obtained.  Use {@link isGPUAvailable} for
+ * a reliable async check.
  *
- * @returns {boolean} `true` if `navigator.gpu` exists.
+ * @returns {boolean} `true` if `navigator.gpu` or `Bun.gpu` exists.
  */
 export function isGPUSync() {
   if (typeof navigator !== 'undefined' && navigator.gpu) return true;
   if (env.isDeno && typeof Deno !== 'undefined' && Deno.gpu) return true;
+  if (env.isBun && typeof globalThis.Bun !== 'undefined' && globalThis.Bun.gpu) return true;
   return false;
 }
 
@@ -200,15 +211,21 @@ export async function requestGPUAdapter(options = {}) {
  */
 async function _requestNodeGPUAdapter(options) {
   const candidates = [
+    'bun-webgpu',
     '@aspect-build/webgpu-node',
     'node-webgpu',
     '@aspect-build/webgpu',
+    'webgpu',
   ];
 
   for (const pkg of candidates) {
     try {
       const mod = await import(pkg);
-      const gpu = mod.gpu || mod.navigator?.gpu || mod.default?.gpu;
+      // bun-webgpu requires setupGlobals() to set navigator.gpu
+      if (pkg === 'bun-webgpu' && typeof mod.setupGlobals === 'function') {
+        mod.setupGlobals();
+      }
+      const gpu = mod.gpu || mod.navigator?.gpu || mod.default?.gpu || (typeof navigator !== 'undefined' && navigator.gpu);
       if (gpu && typeof gpu.requestAdapter === 'function') {
         return await gpu.requestAdapter(options);
       }

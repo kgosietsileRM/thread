@@ -69,6 +69,19 @@ import {
 import { Metrics } from "./metrix";
 import { createWorker, terminateWorker, env } from "./worker-factory.js";
 
+/**
+ * Convert a function to a valid expression string for worker eval.
+ * Handles method shorthand (e.g. `setup() { ... }`) by prefixing `function`.
+ * @private
+ */
+function _toExpr(fn) {
+  const s = fn.toString();
+  if (/^\w+\s*\(/.test(s) && !s.startsWith('function') && !s.startsWith('async ')) {
+    return 'function ' + s;
+  }
+  return s;
+}
+
 // ---------------------------------------------------------------------------
 // Thread class
 // ---------------------------------------------------------------------------
@@ -227,9 +240,9 @@ export class Thread {
    * @private
    */
   _buildWorkerScript() {
-    const setupSrc = this._setupFn ? `(${this._setupFn.toString()})` : 'null';
-    const execSrc = `(${this._execFn.toString()})`;
-    const cleanupSrc = this._cleanupFn ? `(${this._cleanupFn.toString()})` : 'null';
+    const setupSrc = this._setupFn ? `(${_toExpr(this._setupFn)})` : 'null';
+    const execSrc = `(${_toExpr(this._execFn)})`;
+    const cleanupSrc = this._cleanupFn ? `(${_toExpr(this._cleanupFn)})` : 'null';
 
     // Use globalThis for cross-environment compatibility (browser, Node, Deno, Bun)
     return `
@@ -294,10 +307,11 @@ export class Thread {
 
         try {
           let result;
+          const hasState = ${setupSrc} !== null;
           if (isBatch) {
-            result = await Promise.all(args.map((argSet) => (${execSrc})(state, ...argSet, context)));
+            result = await Promise.all(args.map((argSet) => hasState ? (${execSrc})(state, ...argSet, context) : (${execSrc})(...argSet, context)));
           } else {
-            result = await (${execSrc})(state, ...args, context);
+            result = hasState ? await (${execSrc})(state, ...args, context) : await (${execSrc})(...args, context);
           }
           g.postMessage({ id, type: 'result', result });
         } catch (err) {
