@@ -1,32 +1,81 @@
 {
-  "name": "sewt",
-  "version": "1.0.0",
-  "description": "Enterprise Web Worker framework with GPU compute — thread pools, work-stealing, dependencies, health checks, WebGPU shaders, and framework adapters for Preact/React/Zustand/Signals.",
+  "name": "thread",
+  "version": "1.2.0",
+  "description": "Enterprise Web Worker & GPU Compute framework — cross-platform thread pools, work-stealing, WebGPU shaders, with framework adapters for Preact/React/Svelte/Vue/Solid and state managers Zustand/Redux/Jotai/MobX/Signals.",
   "type": "module",
-  "main": "./index.js",
-  "module": "./index.js",
-  "types": "./types.js",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "types": "./src/types.js",
   "exports": {
     ".": {
-      "import": "./index.js",
-      "types": "./types.js"
+      "browser": {
+        "import": "./src/index.js",
+        "types": "./src/types.js"
+      },
+      "node": {
+        "import": "./src/node.js",
+        "types": "./src/types.js"
+      },
+      "bun": {
+        "import": "./src/node.js",
+        "types": "./src/types.js"
+      },
+      "deno": {
+        "import": "./src/deno.js",
+        "types": "./src/types.js"
+      },
+      "edge": {
+        "import": "./src/edge.js",
+        "types": "./src/types.js"
+      },
+      "import": "./src/index.js",
+      "types": "./src/types.js"
     },
-    "./thread": "./thread.js",
-    "./pool": "./pool.js",
-    "./gpu": "./gpu.js",
-    "./gpu-helpers": "./gpu-helpers.js",
-    "./gpu-chains": "./gpu-chains.js",
-    "./gpu-special": "./gpu-special.js",
-    "./gpu-hooks": "./gpu-hooks.js",
-    "./gpu-adapters": "./gpu-adapters.js",
-    "./hooks": "./hooks.js",
-    "./adapters": "./adapters.js",
-    "./factory": "./factory.js",
-    "./error": "./error.js",
-    "./metrix": "./metrix.js",
-    "./serializer": "./serializer.js",
-    "./shaders": "./shaders.js",
-    "./types": "./types.js"
+    "./node": {
+      "import": "./src/node.js",
+      "types": "./src/types.js"
+    },
+    "./deno": {
+      "import": "./src/deno.js",
+      "types": "./src/types.js"
+    },
+    "./edge": {
+      "import": "./src/edge.js",
+      "types": "./src/types.js"
+    },
+    "./config": {
+      "import": "./src/config.js",
+      "types": "./src/types.js"
+    },
+    "./env": {
+      "import": "./src/env.js",
+      "types": "./src/types.js"
+    },
+    "./gpu": {
+      "import": "./src/gpu/index.js",
+      "types": "./src/types.js"
+    },
+    "./gpu/env": {
+      "import": "./src/gpu/env.js",
+      "types": "./src/types.js"
+    },
+    "./gpu/core": "./src/gpu/gpu.js",
+    "./gpu/shaders": "./src/gpu/shaders.js",
+    "./gpu/helpers": "./src/gpu/helpers.js",
+    "./gpu/chains": "./src/gpu/chains.js",
+    "./gpu/special": "./src/gpu/special.js",
+    "./gpu/hooks": "./src/gpu/hooks.js",
+    "./gpu/adapters": "./src/gpu/adapters.js",
+    "./thread": "./src/thread.js",
+    "./pool": "./src/pool.js",
+    "./hooks": "./src/hooks.js",
+    "./adapters": "./src/adapters.js",
+    "./factory": "./src/factory.js",
+    "./error": "./src/error.js",
+    "./metrix": "./src/metrix.js",
+    "./serializer": "./src/serializer.js",
+    "./workers": "./src/worker-factory.js",
+    "./types": "./src/types.js"
   },
   "keywords": [
     "web-worker",
@@ -38,41 +87,40 @@
     "work-stealing",
     "preact",
     "react",
+    "svelte",
+    "vue",
+    "solid",
     "zustand",
-    "signals"
+    "redux",
+    "jotai",
+    "mobx",
+    "signals",
+    "deno",
+    "bun",
+    "node",
+    "edge",
+    "cloudflare-workers"
   ],
   "author": "Peach LLC",
   "license": "MIT",
   "files": [
-    "index.js",
-    "thread.js",
-    "pool.js",
-    "gpu.js",
-    "gpu-helpers.js",
-    "gpu-chains.js",
-    "gpu-special.js",
-    "gpu-hooks.js",
-    "gpu-adapters.js",
-    "hooks.js",
-    "adapters.js",
-    "factory.js",
-    "error.js",
-    "metrix.js",
-    "serializer.js",
-    "shaders.js",
-    "types.js"
+    "src/"
   ],
+  "engines": {
+    "node": ">=18.0.0",
+    "bun": ">=1.0.0",
+    "deno": ">=1.25.0"
+  },
   "peerDependencies": {
     "preact": ">=10.0.0",
-    "typescript": "^5"
+    "react": ">=18.0.0"
   },
   "peerDependenciesMeta": {
     "preact": {
       "optional": true
+    },
+    "react": {
+      "optional": true
     }
-  },
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
   }
 }

@@ -1,14 +1,20 @@
 /**
- * @file Preact / React hooks for GPU compute.
+ * @file Framework-agnostic hooks for GPU compute.
  *
  * Provides lifecycle-bound hooks that mirror the thread/pool hooks
  * but are specialised for {@link GPUCompute} instances.
  *
- * @module gpu-hooks
+ * The framework (Preact, React, etc.) is resolved at load time via the
+ * thread config system.
+ *
+ * @module gpu/hooks
  */
 
-import { useRef, useState, useEffect, useCallback, useMemo } from 'preact/hooks';
+import { getHooks } from '../config/index.js';
 import { GPUCompute } from './gpu.js';
+
+// Resolve framework hooks at module load time (top-level await)
+const { useRef, useState, useEffect, useCallback, useMemo } = await getHooks();
 
 // ---------------------------------------------------------------------------
 // useGPU
@@ -21,18 +27,18 @@ import { GPUCompute } from './gpu.js';
  * The GPU device is lazily initialised on the first `run()` call.
  * The instance is automatically destroyed on unmount.
  *
- * @param {import('./types.js').GPUComputeOptions & { destroy?: boolean }} [options={}]
+ * @param {import('../types.js').GPUComputeOptions & { destroy?: boolean }} [options={}]
  *   GPU options plus `destroy: false` to skip automatic cleanup.
  * @returns {{
  *   gpu: GPUCompute,
  *   run: (...args: any[]) => Promise<any>,
- *   pipe: (name?: string, count?: number) => import('./gpu-chains.js').DataPipelineChain,
+ *   pipe: (name?: string, count?: number) => import('./chains.js').DataPipelineChain,
  *   define: (name: string, fn: Function) => void,
  *   result: any,
  *   loading: boolean,
  *   error: string|null,
  *   status: string,
- *   metrics: import('./types.js').MetricsSnapshot,
+ *   metrics: import('../types.js').MetricsSnapshot,
  * }}
  *
  * @example
@@ -204,7 +210,7 @@ export function useGPURun(gpu) {
  * @param {GPUCompute} [gpu] - GPU instance.  If `null`/`undefined`,
  *   returns a zeroed snapshot.
  * @param {number} [intervalMs=500] - Polling interval in ms.
- * @returns {import('./types.js').MetricsSnapshot}
+ * @returns {import('../types.js').MetricsSnapshot}
  *
  * @example
  * ```jsx

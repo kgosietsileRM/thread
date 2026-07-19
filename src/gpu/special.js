@@ -4,10 +4,10 @@
  * These are standalone functions that receive a {@link GPUCompute} instance
  * as their first argument, keeping the main class focused on single-pass compute.
  *
- * @module gpu-special
+ * @module gpu/special
  */
 
-import { GPUComputeError } from './error.js';
+import { GPUComputeError } from '../error.js';
 
 // ---------------------------------------------------------------------------
 // Dispatcher

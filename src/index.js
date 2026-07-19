@@ -1,5 +1,5 @@
 /**
- * @file sewt — Enterprise Web Worker & GPU Compute Framework
+ * @file thread — Enterprise Web Worker & GPU Compute Framework
  *
  * A modular, feature-rich library for running CPU-intensive work in
  * **Web Workers** and **WebGPU compute shaders**, with a thread pool,
@@ -11,7 +11,7 @@
  * ## Architecture
  *
  * ```
- * sewt
+ * thread
  * ├── Thread            – Single worker with full lifecycle management
  * ├── ThreadPool        – Pool with priority queue, deps, work-stealing
  * ├── GPUCompute        – WebGPU compute shader executor
@@ -33,7 +33,7 @@
  * ### CPU workers
  *
  * ```js
- * import { createThread, createPool } from 'sewt';
+ * import { createThread, createPool } from 'thread';
  *
  * // Single thread
  * const t = createThread((x) => x * 2);
@@ -48,7 +48,7 @@
  * ### GPU compute
  *
  * ```js
- * import { createGPUOp } from 'sewt';
+ * import { createGPUOp } from 'thread';
  *
  * // One-liner GPU operation
  * const gpu = createGPUOp('double', (data) => data.value * 2);
@@ -66,7 +66,7 @@
  * ### 1. Stateful workers with setup / exec / cleanup
  *
  * ```js
- * import { createThread } from 'sewt';
+ * import { createThread } from 'thread';
  *
  * const db = createThread({
  *   setup() {
@@ -89,7 +89,7 @@
  * ### 2. Timeouts, abort, and retries
  *
  * ```js
- * import { createThread, ThreadTimeoutError, ThreadAbortError } from 'sewt';
+ * import { createThread, ThreadTimeoutError, ThreadAbortError } from 'thread';
  *
  * const t = createThread((data) => heavyProcess(data));
  * const controller = new AbortController();
@@ -112,7 +112,7 @@
  * ### 3. Pool with priorities and dependencies
  *
  * ```js
- * import { createPool } from 'sewt';
+ * import { createPool } from 'thread';
  *
  * const pool = createPool(4, (x) => x * 2);
  *
@@ -132,7 +132,7 @@
  * ### 4. GPU — define ops from plain JS
  *
  * ```js
- * import { createGPUOp } from 'sewt';
+ * import { createGPUOp } from 'thread';
  *
  * // EMA (Exponential Moving Average)
  * const gpu = createGPUOp('ema', (data, { alpha }) =>
@@ -148,7 +148,7 @@
  *
  * ### 5. GPU pipeline chaining
  *
- * ```js * import { GPUCompute } from 'sewt';
+ * ```js * import { GPUCompute } from 'thread';
  *
  * const gpu = new GPUCompute();
  * gpu.define('ema', (data, { alpha }) => data.value * alpha);
@@ -177,7 +177,7 @@
  * ### 7. GPU reductions and special ops
  *
  * ```js
- * import { createGPUReducer } from 'sewt';
+ * import { createGPUReducer } from 'thread';
  *
  * const gpu = createGPUReducer();
  * const data = new Float32Array([1, 2, 3, 4, 5]);
@@ -208,7 +208,7 @@
  * ### 9. Preact / React hooks
  *
  * ```jsx
- * import { useGPU, useThread, usePool } from 'sewt';
+ * import { useGPU, useThread, usePool } from 'thread';
  *
  * function GPUDemo({ prices }) {
  *   const { run, result, loading, error, status } = useGPU();
@@ -228,7 +228,7 @@
  * ### 10. Zustand / Signal adapters
  *
  * ```js
- * import { createGPUBinder, createGPUSignalBinder } from 'sewt';
+ * import { createGPUBinder, createGPUSignalBinder } from 'thread';
  * import { signal } from '@preact/signals';
  *
  * // Bind GPU to Zustand store
@@ -248,7 +248,7 @@
  *
  * ## TypeScript
  *
- * Import types from `sewt/types`:
+ * Import types from `thread/types`:
  *
  * ```ts
  * import type {
@@ -273,7 +273,7 @@
  *   StoreBinderOptions,
  *   BinderHandle,
  *   Signal,
- * } from 'sewt/types';
+ * } from 'thread/types';
  * ```
  *
  * ---
@@ -292,7 +292,7 @@
  * | `GPUComputeError`        | Shader compilation, buffer, or dispatch   |
  *
  * ```js
- * import { ThreadError, ThreadTimeoutError, GPUComputeError } from 'sewt';
+ * import { ThreadError, ThreadTimeoutError, GPUComputeError } from 'thread';
  *
  * try {
  *   await gpu.run('myOp', input);
@@ -307,7 +307,7 @@
  *
  * ---
  *
- * @module sewt
+ * @module thread
  */
 
 import {
@@ -351,23 +351,27 @@ import {
     createGPUWithFallback,
     outputSpec,
     uniform,
-} from "./gpu";
+} from "./gpu/index.js";
 import {
     useGPU,
     useGPURun,
     useGPUMetrics,
     useGPUStatus,
-} from "./gpu-hooks";
+} from "./gpu/hooks.js";
 import {
     createGPUBinder,
     createGPUSignalBinder,
     createGPUStoreBinder,
-} from "./gpu-adapters";
-import { buildShader, BUILT_IN_OPS, BUILT_IN_OP_NAMES, SPECIAL_OPS } from "./shaders";
+} from "./gpu/adapters.js";
+import { buildShader, BUILT_IN_OPS, BUILT_IN_OP_NAMES, SPECIAL_OPS } from "./gpu/shaders.js";
 import { Metrics } from "./metrix";
 import { ThreadPool } from "./pool";
 import { Serializer } from "./serializer";
 import { Thread } from "./thread";
+import { defineConfig, getConfig, setConfig } from "./config.js";
+import { env } from "./env.js";
+import { createWorker as createPlatformWorker, terminateWorker, supportsWorkers, workerInfo } from "./worker-factory.js";
+import { gpuEnv, isGPUAvailable, requestGPUAdapter, requestGPUDevice } from "./gpu/env.js";
 
 export {
   // Errors
@@ -425,6 +429,20 @@ export {
   createGPUBinder,
   createGPUSignalBinder,
   createGPUStoreBinder,
+  // Config
+  defineConfig,
+  getConfig,
+  setConfig,
+  // Environment
+  env,
+  createPlatformWorker,
+  terminateWorker,
+  supportsWorkers,
+  workerInfo,
+  gpuEnv,
+  isGPUAvailable,
+  requestGPUAdapter,
+  requestGPUDevice,
 };
 
 export default {
@@ -483,4 +501,18 @@ export default {
   createGPUBinder,
   createGPUSignalBinder,
   createGPUStoreBinder,
+  // Config
+  defineConfig,
+  getConfig,
+  setConfig,
+  // Environment
+  env,
+  createPlatformWorker,
+  terminateWorker,
+  supportsWorkers,
+  workerInfo,
+  gpuEnv,
+  isGPUAvailable,
+  requestGPUAdapter,
+  requestGPUDevice,
 };

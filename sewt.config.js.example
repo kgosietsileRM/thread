@@ -1,0 +1,62 @@
+import { defineConfig } from 'thread/config';
+
+/**
+ * thread.config.js — Library configuration
+ *
+ * Copy this file to your project root and customize.
+ * All fields are optional — omitted values use built-in defaults.
+ *
+ * @type {import('thread/types').threadConfig}
+ */
+export default defineConfig({
+
+  // ─── UI Framework ──────────────────────────────────────────────
+  // Determines which hooks (useState, useEffect, etc.) are used.
+  // Options: 'preact' | 'react' | 'svelte' | 'vue' | 'solid' | 'angular' | 'custom'
+  framework: 'preact',
+
+  // ─── State Manager ─────────────────────────────────────────────
+  // Determines which adapter shortcuts are available.
+  // Options: 'zustand' | 'signals' | 'redux' | 'jotai' | 'mobx' | 'vanilla' | 'custom'
+  stateManager: 'zustand',
+
+  // ─── Custom Hook Source (optional) ─────────────────────────────
+  // Use when framework is 'custom' or you want to provide your own hooks.
+  // Must return { useState, useEffect, useRef, useCallback, useMemo }.
+  // customHookSource: () => import('my-framework/hooks'),
+
+  // ─── Custom Adapter (optional) ─────────────────────────────────
+  // Use when stateManager is 'custom'.
+  // Receives (threadOrGpu, store, action, options) → { run, destroy }.
+  // customAdapter: (instance, store, action, opts) => ({ run: ..., destroy: ... }),
+
+  // ─── GPU Defaults ──────────────────────────────────────────────
+  gpu: {
+    workgroupSize: 256,             // Must match @workgroup_size(N) in shaders
+    maxBufferSize: 256 * 1024 * 1024, // 256 MB
+    powerPreference: 'high-performance', // 'low-power' | 'high-performance'
+    // cpuFallback: (input) => { ... },  // Called when WebGPU unavailable
+  },
+
+  // ─── Thread Defaults ───────────────────────────────────────────
+  thread: {
+    timeout: 30_000,                // 30 seconds
+    // idleTimeout: 60_000,
+    // healthCheckInterval: 10_000,
+    // healthCheckTimeout: 5_000,
+  },
+
+  // ─── Pool Defaults ─────────────────────────────────────────────
+  pool: {
+    autoRestart: true,              // Replace crashed workers automatically
+    enableStealing: true,           // Work-stealing between threads
+    // maxSize: 16,
+  },
+
+  // ─── Development ───────────────────────────────────────────────
+  dev: {
+    log: false,                     // Forward worker console.log to main thread
+    metrics: false,                 // Enable metrics collection
+    warnOnLongTask: 0,              // Warn if task exceeds N ms (0 = disabled)
+  },
+});

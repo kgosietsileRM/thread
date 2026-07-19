@@ -67,6 +67,7 @@ import {
     ThreadTimeoutError
 } from "./error";
 import { Metrics } from "./metrix";
+import { createWorker, terminateWorker, env } from "./worker-factory.js";
 
 // ---------------------------------------------------------------------------
 // Thread class
@@ -184,10 +185,8 @@ export class Thread {
       throw new TypeError('definition must be a function or { setup?, exec?, cleanup? }');
     }
 
-    // ---- build worker script ----
+    // ---- build worker script and spawn via factory ----
     this._workerScript = this._buildWorkerScript();
-    const blob = new Blob([this._workerScript], { type: 'application/javascript' });
-    this._blobUrl = URL.createObjectURL(blob);
     this._spawnWorker();
 
     // ---- register global listeners ----
@@ -228,22 +227,23 @@ export class Thread {
    * @private
    */
   _buildWorkerScript() {
-    const imports = this._imports.map((u) => `importScripts('${u}');`).join('\n');
     const setupSrc = this._setupFn ? `(${this._setupFn.toString()})` : 'null';
     const execSrc = `(${this._execFn.toString()})`;
     const cleanupSrc = this._cleanupFn ? `(${this._cleanupFn.toString()})` : 'null';
 
+    // Use globalThis for cross-environment compatibility (browser, Node, Deno, Bun)
     return `
-      ${imports}
       let state = null;
       let isInitialised = false;
 
-      self.log = function(message) {
-        self.postMessage({ type: 'log', message: String(message) });
+      const g = typeof globalThis !== 'undefined' ? globalThis : typeof self !== 'undefined' ? self : this;
+
+      g.log = function(message) {
+        g.postMessage({ type: 'log', message: String(message) });
       };
-      self.reportMemory = function() {
-        if (performance.memory) {
-          self.postMessage({ type: 'memory', memory: performance.memory });
+      g.reportMemory = function() {
+        if (typeof performance !== 'undefined' && performance.memory) {
+          g.postMessage({ type: 'memory', memory: performance.memory });
         }
       };
 
@@ -252,44 +252,44 @@ export class Thread {
           try {
             state = await (${setupSrc})();
           } catch (err) {
-            self.postMessage({ type: 'setupError', error: err.message || String(err) });
+            g.postMessage({ type: 'setupError', error: err.message || String(err) });
             throw err;
           }
         }
         isInitialised = true;
-        self.postMessage({ type: 'ready' });
+        g.postMessage({ type: 'ready' });
       };
 
-      self.onmessage = async function(e) {
+      g.onmessage = async function(e) {
         const { id, args, transfer, hasProgress, isBatch, isHealthCheck, isCleanup } = e.data || {};
 
         if (isHealthCheck) {
-          self.postMessage({ id, type: 'health' });
+          g.postMessage({ id, type: 'health' });
           return;
         }
         if (isCleanup) {
           if (${cleanupSrc} !== null && state !== null) {
             try { await (${cleanupSrc})(state); } catch (err) {
-              self.postMessage({ type: 'cleanupError', error: err.message || String(err) });
+              g.postMessage({ type: 'cleanupError', error: err.message || String(err) });
             }
           }
-          self.postMessage({ id, type: 'cleanupDone' });
+          g.postMessage({ id, type: 'cleanupDone' });
           return;
         }
 
         if (!isInitialised) {
           try { await runSetup(); } catch (err) {
-            self.postMessage({ id, type: 'error', error: err.message || String(err) });
+            g.postMessage({ id, type: 'error', error: err.message || String(err) });
             return;
           }
         }
 
         const context = {
           reportProgress: (value) => {
-            if (hasProgress) self.postMessage({ id, type: 'progress', value });
+            if (hasProgress) g.postMessage({ id, type: 'progress', value });
           },
-          log: self.log,
-          reportMemory: self.reportMemory,
+          log: g.log,
+          reportMemory: g.reportMemory,
         };
 
         try {
@@ -299,9 +299,9 @@ export class Thread {
           } else {
             result = await (${execSrc})(state, ...args, context);
           }
-          self.postMessage({ id, type: 'result', result });
+          g.postMessage({ id, type: 'result', result });
         } catch (err) {
-          self.postMessage({
+          g.postMessage({
             id,
             type: 'error',
             error: err.message || String(err),
@@ -326,8 +326,8 @@ export class Thread {
    * @private
    */
   _spawnWorker() {
-    if (this._worker) this._worker.terminate();
-    const worker = new Worker(this._blobUrl);
+    if (this._worker) terminateWorker(this._worker);
+    const worker = createWorker(this._workerScript, { imports: this._imports });
     worker.onmessage = this._handleMessage.bind(this);
     worker.onerror = this._handleError.bind(this);
     worker.onmessageerror = this._handleError.bind(this);
@@ -831,14 +831,10 @@ export class Thread {
     if (typeof newExec !== 'function') throw new TypeError('newExec must be a function');
     this._execFn = newExec;
     // Rebuild script and restart
-    const oldUrl = this._blobUrl;
     this._workerScript = this._buildWorkerScript();
-    const blob = new Blob([this._workerScript], { type: 'application/javascript' });
-    this._blobUrl = URL.createObjectURL(blob);
-    URL.revokeObjectURL(oldUrl);
 
     if (this._worker) {
-      this._worker.terminate();
+      terminateWorker(this._worker);
       this._worker = null;
     }
     this._spawnWorker();
@@ -947,12 +943,8 @@ export class Thread {
     if (this._backoffTimer) clearTimeout(this._backoffTimer);
 
     if (this._worker) {
-      this._worker.terminate();
+      terminateWorker(this._worker);
       this._worker = null;
-    }
-    if (this._blobUrl) {
-      URL.revokeObjectURL(this._blobUrl);
-      this._blobUrl = null;
     }
     for (const [id, { reject, timer, abortHandler }] of this._pending) {
       clearTimeout(timer);

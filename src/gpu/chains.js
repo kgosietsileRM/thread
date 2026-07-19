@@ -4,11 +4,11 @@
  * Provides {@link PipelineChain} and {@link DataPipelineChain} for
  * fluent, sequential GPU operation composition.
  *
- * @module gpu-chains
+ * @module gpu/chains
  */
 
-import { GPUComputeError } from './error.js';
-import { boxAll, isOldRunFormat, jsToWgsl, getParamNames } from './gpu-helpers.js';
+import { GPUComputeError } from '../error.js';
+import { boxAll, isOldRunFormat, jsToWgsl, getParamNames } from './helpers.js';
 
 // ---------------------------------------------------------------------------
 // PipelineChain — fluent API for chaining GPU operations

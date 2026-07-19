@@ -54,7 +54,7 @@
 
 import { ThreadPool } from "./pool";
 import { Thread } from "./thread";
-import { GPUCompute } from "./gpu.js";
+import { GPUCompute } from "./gpu/gpu.js";
 
 // ---------------------------------------------------------------------------
 // createThread

@@ -6,7 +6,7 @@
  * representation (`{ __type: 'function', __value: '(x) => x + 1' }`) and
  * revives them later via `new Function()`.
  *
- * This is primarily used internally by the threat module to pass function
+ * This is primarily used internally by the thread module to pass function
  * references across worker boundaries, but you can use it anywhere you
  * need JSON-like serialization with function support.
  *

@@ -6,7 +6,7 @@
  * rely on an event emitter, GPU adapters intercept `run()` calls
  * directly because {@link GPUCompute} does not emit events.
  *
- * @module gpu-adapters
+ * @module gpu/adapters
  */
 
 // ---------------------------------------------------------------------------
@@ -39,7 +39,7 @@
  * ```js
  * import { create } from 'zustand';
  * import { createGPUCompute } from './gpu.js';
- * import { createGPUBinder } from './gpu-adapters.js';
+ * import { createGPUBinder } from './adapters.js';
  *
  * const useStore = create((set) => ({
  *   result: null,
@@ -120,7 +120,7 @@ export function createGPUBinder(gpu, store, action, options = {}) {
  * ```js
  * import { signal } from '@preact/signals';
  * import { createGPUCompute } from './gpu.js';
- * import { createGPUSignalBinder } from './gpu-adapters.js';
+ * import { createGPUSignalBinder } from './adapters.js';
  *
  * const dataSignal = signal(null);
  * const errorSignal = signal(null);
@@ -190,7 +190,7 @@ export function createGPUSignalBinder(gpu, signal, options = {}) {
  *
  * @example
  * ```js
- * import { createGPUStoreBinder } from './gpu-adapters.js';
+ * import { createGPUStoreBinder } from './adapters.js';
  *
  * const gpu = createGPUCompute();
  * const [data, setData] = useState(null);

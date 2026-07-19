@@ -5,10 +5,10 @@
  * These functions have zero coupling to GPU state and can be used
  * independently of the {@link GPUCompute} class.
  *
- * @module gpu-helpers
+ * @module gpu/helpers
  */
 
-import { GPUComputeError } from './error.js';
+import { GPUComputeError } from '../error.js';
 
 // ---------------------------------------------------------------------------
 // Output type helpers

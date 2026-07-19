@@ -121,7 +121,7 @@ function wgslType(type) {
  * WGSL.  You normally don't call this directly — use `gpu.define()`
  * or the built-in ops.
  *
- * @param {import('./types.js').ShaderDeclaration} decl
+ * @param {import('../types.js').ShaderDeclaration} decl
  * @returns {string} Complete WGSL shader source.
  *
  * @example
@@ -206,7 +206,7 @@ export function buildShader(decl) {
  * Built-in operation registry.  Each entry defines the inputs, uniforms,
  * outputs, and WGSL body for a common GPU operation.
  *
- * @type {Object<string, import('./types.js').BuiltInOp>}
+ * @type {Object<string, import('../types.js').BuiltInOp>}
  */
 export const BUILT_IN_OPS = {
   // ---- Arithmetic (binary: input + uniform scalar/vector) ----

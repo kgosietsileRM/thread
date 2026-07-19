@@ -1,8 +1,8 @@
-# sewt
+# thread
 
 **Enterprise Web Worker & GPU Compute Framework**
 
-A modular, feature-rich library for running CPU-intensive work in **Web Workers** and **WebGPU compute shaders**. Includes a thread pool with work-stealing, dependency tracking, health checks, 57+ built-in GPU operations, and framework adapters for Preact, React, Zustand, and Preact Signals.
+A modular, feature-rich library for running CPU-intensive work in **Web Workers** and **WebGPU compute shaders**. Includes a thread pool with work-stealing, dependency tracking, health checks, 57+ built-in GPU operations, and framework adapters for Preact, React, Svelte, Vue, Solid, Zustand, Redux, and Preact Signals.
 
 ---
 
@@ -10,6 +10,17 @@ A modular, feature-rich library for running CPU-intensive work in **Web Workers*
 
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Environment Compatibility](#environment-compatibility)
+  - [Supported Runtimes](#supported-runtimes)
+  - [Environment-Specific Entry Points](#environment-specific-entry-points)
+  - [Environment Detection](#environment-detection)
+  - [Config in Different Environments](#config-in-different-environments)
+  - [GPU in Different Environments](#gpu-in-different-environments)
+- [Configuration](#configuration)
+  - [Config File Format](#config-file-format)
+  - [Supported Frameworks](#supported-frameworks)
+  - [Supported State Managers](#supported-state-managers)
+  - [Custom Framework / State Manager](#custom-framework--state-manager)
 - [Architecture](#architecture)
 - [CPU Workers](#cpu-workers)
   - [Single Thread](#single-thread)
@@ -27,10 +38,8 @@ A modular, feature-rich library for running CPU-intensive work in **Web Workers*
   - [Reductions](#reductions)
   - [Profiling & Auto-Tuning](#profiling--auto-tuning)
 - [Framework Integration](#framework-integration)
-  - [Preact / React Hooks](#preact--react-hooks)
-  - [Zustand Adapter](#zustand-adapter)
-  - [Preact Signals Adapter](#preact-signals-adapter)
-  - [Generic Store Adapter](#generic-store-adapter)
+  - [Hooks](#hooks)
+  - [Adapters](#adapters)
 - [Error Handling](#error-handling)
 - [TypeScript](#typescript)
 - [Real-Life Use Cases](#real-life-use-cases)
@@ -41,14 +50,14 @@ A modular, feature-rich library for running CPU-intensive work in **Web Workers*
 ## Installation
 
 ```bash
-npm install sewt
+npm install thread
 # or
-bun add sewt
+bun add thread
 ```
 
 Peer dependency (optional — only needed for hooks):
 ```bash
-npm install preact
+npm install preact   # or react
 ```
 
 ---
@@ -58,7 +67,7 @@ npm install preact
 ### CPU Workers
 
 ```js
-import { createThread, createPool } from 'sewt';
+import { createThread, createPool } from 'thread';
 
 // Single thread — run a function in a Web Worker
 const t = createThread((x) => x * 2);
@@ -73,7 +82,7 @@ console.log(await promise); // 2
 ### GPU Compute
 
 ```js
-import { createGPUOp } from 'sewt';
+import { createGPUOp } from 'thread';
 
 // Define a GPU operation from a plain JS function
 const gpu = createGPUOp('double', (data) => data.value * 2);
@@ -87,22 +96,267 @@ console.log(result.result); // Float32Array [2, 4, 6]
 
 ---
 
+## Environment Compatibility
+
+thread works across **5+ JavaScript runtimes** out of the box. The library auto-detects your environment and uses the appropriate APIs for Workers, GPU, and config loading.
+
+### Supported Runtimes
+
+| Runtime | Worker API | GPU API | Config Loading | Import Path |
+|---------|-----------|---------|---------------|-------------|
+| **Browser** | Web Workers (Blob URLs) | `navigator.gpu` | Filesystem (Node) or programmatic | `thread` |
+| **Node.js** | `worker_threads` (eval) | `@aspect-build/webgpu-node` | `fs.readFileSync` | `thread/node` |
+| **Bun** | `worker_threads` (eval) | Bun built-in (experimental) | `fs.readFileSync` | `thread/node` |
+| **Deno** | Deno Workers (Blob URLs) | `Deno.gpu` | `Deno.readTextFileSync` | `thread/deno` |
+| **Edge** | Web Workers (Blob URLs) | `navigator.gpu` | Programmatic only | `thread/edge` |
+| **Cloudflare Workers** | No Worker support | `navigator.gpu` | Programmatic only | `thread/edge` |
+
+### Environment-Specific Entry Points
+
+Use the appropriate import for your runtime:
+
+```js
+// Browser (auto-detected)
+import { Thread, ThreadPool } from 'thread';
+
+// Node.js / Bun
+import { Thread, ThreadPool } from 'thread/node';
+
+// Deno
+import { Thread, ThreadPool } from 'thread/deno';
+
+// Edge (Cloudflare Workers, Vercel Edge, Netlify Edge)
+import { Thread, ThreadPool } from 'thread/edge';
+```
+
+The main `thread` export uses **conditional exports** — your bundler/runtime automatically picks the right entry point based on the `browser`, `node`, `bun`, `deno`, and `edge` conditions.
+
+### Environment Detection
+
+Use the `env` object to detect your runtime and available features:
+
+```js
+import { env } from 'thread/env';
+
+console.log(env.runtime);      // 'browser' | 'node' | 'bun' | 'deno' | 'edge'
+console.log(env.isNode);       // true
+console.log(env.hasWorker);    // true
+console.log(env.hasGPU);       // false (unless WebGPU is enabled)
+console.log(env.hasFS);        // true (Node/Bun only)
+console.log(env.isMainThread); // true
+
+// Platform-specific helpers
+const cwd = env.getCwd();                    // '/home/user/project'
+const fs = env.requireModule('node:fs');     // fs module or null
+const exists = env.fileExists('./config.js'); // true/false
+const path = env.resolvePath('src', 'index.js'); // '/home/user/project/src/index.js'
+```
+
+### Config in Different Environments
+
+**Browser/Edge:** Config must be set programmatically (no filesystem access):
+
+```js
+import { setProgrammaticConfig } from 'thread/config';
+
+setProgrammaticConfig({
+  framework: 'react',
+  stateManager: 'zustand',
+  gpu: { workgroupSize: 512 },
+});
+```
+
+**Node.js/Bun/Deno:** Use the standard `thread.config.js` file in your project root:
+
+```js
+// thread.config.js
+import { defineConfig } from 'thread/config';
+
+export default defineConfig({
+  framework: 'preact',
+  stateManager: 'zustand',
+});
+```
+
+### GPU in Different Environments
+
+WebGPU availability varies by runtime:
+
+```js
+import { isGPUAvailable, gpuEnv } from 'thread/gpu/env';
+
+// Async check (recommended)
+if (await isGPUAvailable()) {
+  const gpu = new GPUCompute({ shader: myShader });
+  await gpu.init();
+} else {
+  // Fall back to CPU
+  const cpu = createGPUWithFallback(shader, cpuFn);
+}
+
+// Sync check (fast, less reliable)
+if (gpuEnv.sync) {
+  console.log('WebGPU detected');
+}
+
+// Detailed diagnostics
+const info = await gpuEnv.info();
+console.log(info);
+// { available: true, runtime: 'browser', adapterName: 'NVIDIA RTX 4090', ... }
+```
+
+**Node.js GPU:** Install a WebGPU binding:
+```bash
+npm install @aspect-build/webgpu-node
+# or
+npm install node-webgpu
+```
+
+---
+
+## Configuration
+
+thread uses a config file (`thread.config.js`) in your project root to
+configure the library globally.  **All fields are optional** — thread
+works out of the box with sensible defaults (Preact + Zustand).
+
+### Config File Format
+
+```js
+// thread.config.js
+import { defineConfig } from 'thread/config';
+
+export default defineConfig({
+  // UI framework — hooks are auto-resolved at load time
+  framework: 'react',        // 'preact' | 'react' | 'svelte' | 'vue' | 'solid' | 'angular' | 'custom'
+
+  // State manager — determines which adapter shortcuts are available
+  stateManager: 'zustand',   // 'zustand' | 'signals' | 'redux' | 'jotai' | 'mobx' | 'vanilla' | 'custom'
+
+  // GPU compute defaults (applied to all GPUCompute instances)
+  gpu: {
+    workgroupSize: 256,             // Must match @workgroup_size(N) in shaders
+    maxBufferSize: 256 * 1024 * 1024, // 256 MB max buffer
+    powerPreference: 'high-performance', // 'low-power' | 'high-performance'
+    // cpuFallback: (input) => { ... },  // Called when WebGPU unavailable
+  },
+
+  // Thread defaults (applied to all threads via factories)
+  thread: {
+    timeout: 30_000,                // 30 second task timeout
+    // idleTimeout: 60_000,         // Auto-terminate idle threads
+    // healthCheckInterval: 10_000, // Ping threads every 10s
+  },
+
+  // Pool defaults (applied to all pools via factories)
+  pool: {
+    autoRestart: true,              // Replace crashed workers
+    enableStealing: true,           // Work-stealing between threads
+    // maxSize: 16,                 // Cap thread count
+  },
+
+  // Development options
+  dev: {
+    log: false,                     // Forward worker logs to main thread
+    metrics: false,                 // Enable metrics collection
+    warnOnLongTask: 0,              // Warn if task > N ms (0 = disabled)
+  },
+});
+```
+
+### Supported Frameworks
+
+| Framework | Import path | Hook support | Notes |
+|-----------|------------|-------------|-------|
+| Preact | `preact/hooks` | Full | Default. Identical API to React. |
+| React | `react` | Full | Works with React 18+. |
+| Svelte | `svelte/reactivity` | Partial | Svelte 5 runes. Some hooks are shims. |
+| Vue | `vue` | Partial | Composition API. `ref()` → `useState`. |
+| Solid | `solid-js` | Full | Exports hooks directly. |
+| Angular | — | — | Coming soon. Use `custom` with a shim. |
+| Custom | — | — | User provides `customHookSource`. |
+
+### Supported State Managers
+
+| State Manager | Adapter type | Thread adapter | GPU adapter | Notes |
+|--------------|-------------|---------------|-------------|-------|
+| Zustand | action | `createZustandBinder` | `createGPUBinder` | Default. Action-based. |
+| Signals | signal | `createSignalBinder` | `createGPUSignalBinder` | Preact Signals. `.value` based. |
+| Redux | setter | `createStoreBinder` | `createGPUStoreBinder` | Generic setter callback. |
+| Jotai | setter | `createStoreBinder` | `createGPUStoreBinder` | Uses Redux adapter. |
+| MobX | setter | `createStoreBinder` | `createGPUStoreBinder` | Uses Redux adapter. |
+| Vanilla | setter | `createStoreBinder` | `createGPUStoreBinder` | Any setter function. |
+| Custom | — | — | — | User provides `customAdapter`. |
+
+### Custom Framework / State Manager
+
+```js
+// thread.config.js
+import { defineConfig } from 'thread/config';
+
+export default defineConfig({
+  framework: 'custom',
+  customHookSource: async () => {
+    // Import your framework's hooks
+    const mod = await import('my-framework/hooks');
+    return {
+      useState: mod.useState,
+      useEffect: mod.useEffect,
+      useRef: mod.useRef,
+      useCallback: mod.useCallback,
+      useMemo: mod.useMemo,
+    };
+  },
+
+  stateManager: 'custom',
+  customAdapter: (instance, store, action) => ({
+    run: async (...args) => {
+      const result = await instance.run(...args);
+      store.dispatch({ type: action, payload: result });
+    },
+    destroy: () => {},
+  }),
+});
+```
+
+---
+
 ## Architecture
 
 ```
-sewt
-├── Thread              Single worker with full lifecycle management
-├── ThreadPool          Pool with priority queue, deps, work-stealing
-├── GPUCompute          WebGPU compute shader executor
-│   ├── PipelineChain       Fluent multi-step GPU pipelines
-│   ├── DataPipelineChain   Data-carrying pipelines with named methods
-│   └── 57+ built-in ops    multiply, sqrt, ema, reduce_sum, matmul, …
-├── Metrics             Performance counters (avg, throughput, errors)
-├── Serializer          JSON-safe serialization with function support
-├── Errors              Typed error hierarchy (timeout, abort, GPU, …)
-├── Factories           createThread, createPool, createGPUOp, …
-├── Hooks               useThread, usePool, useGPU (Preact/React)
-└── Adapters            Zustand, Signals, generic store bindings
+thread/
+├── package.json
+├── README.md
+├── thread.config.js.example    Example config file
+├── src/
+│   ├── index.js              Main barrel export (re-exports everything)
+│   ├── config.js             Config entry (thread/config)
+│   ├── types.js              TypeScript type definitions
+│   ├── thread.js             Thread class — single worker lifecycle
+│   ├── pool.js               ThreadPool — priority queue, deps, work-stealing
+│   ├── metrix.js             Metrics — performance counters
+│   ├── serializer.js         Serializer — JSON-safe with function support
+│   ├── error.js              Error hierarchy (ThreadError, GPUComputeError, …)
+│   ├── factory.js            Factory functions (createThread, createPool, …)
+│   ├── hooks.js              Framework-agnostic hooks (useThread, usePool, …)
+│   ├── adapters.js           Framework adapters (Zustand, Signals, …)
+│   ├── config/
+│   │   ├── index.js          Config loader (getConfig, setConfig)
+│   │   ├── define.js         defineConfig() helper
+│   │   ├── schema.js         Defaults, validation, mergeWithDefaults
+│   │   ├── frameworks.js     Framework → hooks resolver
+│   │   └── adapters.js       State manager → adapter registry
+│   └── gpu/
+│       ├── index.js          GPU barrel export
+│       ├── gpu.js            GPUCompute class — WebGPU executor
+│       ├── shaders.js        Built-in ops, shader DSL (57+ ops)
+│       ├── helpers.js        Auto-boxing, transpile, jsToWgsl
+│       ├── chains.js         PipelineChain + DataPipelineChain
+│       ├── special.js        Multi-pass: matmul, reduce, histogram, scan
+│       ├── hooks.js          GPU-specific hooks (useGPU, useGPURun, …)
+│       └── adapters.js       GPU-specific adapters (Zustand, Signals, …)
+└── tests/
+    └── thread.spec.js        Full test suite (238 tests, 759 expects)
 ```
 
 ---
@@ -111,9 +365,13 @@ sewt
 
 ### Single Thread
 
-```js
-import { createThread } from 'sewt';
+Run a function in a dedicated Web Worker.  The thread is created lazily
+on the first `run()` call and can be terminated when no longer needed.
 
+```js
+import { createThread } from 'thread';
+
+// Simple function — auto-serialized and sent to a worker
 const t = createThread((a, b) => a + b);
 console.log(await t.run(3, 4)); // 7
 
@@ -125,12 +383,18 @@ const t2 = createThread((data) => process(data), {
   onLog: (msg) => console.log('[worker]', msg),
   onTiming: (ms) => console.log(`Done in ${ms.toFixed(1)}ms`),
 });
+
+// Cleanup
+await t.terminate();
 ```
 
 ### Thread Pool
 
+Distribute work across multiple workers with a priority queue,
+dependency tracking, and work-stealing.
+
 ```js
-import { createPool } from 'sewt';
+import { createPool } from 'thread';
 
 const pool = createPool(4, (n) => {
   let sum = 0;
@@ -160,8 +424,10 @@ pool.scaleTo(2);   // back to normal
 
 ### Stateful Workers
 
+Workers with persistent state across tasks (setup → exec → cleanup):
+
 ```js
-import { createThread } from 'sewt';
+import { createThread } from 'thread';
 
 const db = createThread({
   setup() {
@@ -193,25 +459,25 @@ Process large arrays in chunks, yielding results as they complete:
 const t = createThread((chunk) => chunk.map((x) => x * x));
 const data = Array.from({ length: 10_000 }, (_, i) => i);
 
-for await (const partial of t.runStreaming(data, 100)) {
-  renderProgress(partial);
+// Process in chunks of 1000
+for (let i = 0; i < data.length; i += 1000) {
+  const chunk = data.slice(i, i + 1000);
+  const result = await t.run(chunk);
+  console.log(`Chunk ${i / 1000 + 1} done:`, result);
 }
 ```
 
 ### Function Chaining
 
-Pipe a value through a sequence of functions, each in its own worker:
+Chain multiple operations on the same thread:
 
 ```js
-const t = createThread((x) => x);
+const t = createThread((x) => x * 2);
 
-const result = await t.runChain(
-  10,
-  (x) => x + 5,    // 15
-  (x) => x * 2,    // 30
-  (x) => x - 3,    // 27
-);
-// 27
+const chain = t.runChain(5);       // start with 5
+chain.run((x) => x + 1);          // → 11
+chain.run((x) => x * 3);          // → 33
+const final = await chain.run((x) => x - 1); // → 32
 ```
 
 ---
@@ -220,291 +486,272 @@ const result = await t.runChain(
 
 ### One-Liner Ops
 
-Define GPU operations from plain JavaScript functions. The function is automatically transpiled to WGSL for the GPU and also serves as the CPU fallback when WebGPU is unavailable.
+Define GPU operations from plain JavaScript functions.  The function is
+automatically transpiled to WGSL and executed on the GPU:
 
 ```js
-import { createGPUOp } from 'sewt';
+import { createGPUOp } from 'thread';
 
-// EMA (Exponential Moving Average)
-const gpu = createGPUOp('ema', (data, { alpha }) =>
-  data.value * alpha + data.index * (1 - alpha)
-);
+const gpu = createGPUOp('double', (data) => data.value * 2);
 
-const prices = new Float32Array([100, 102, 101, 105, 107]);
-const result = await gpu.run('ema', {
-  inputs:   { data: prices },
-  uniforms: { alpha: new Float32Array([0.3]) },
-  outputs:  { result: 5 },
+const result = await gpu.run('double', {
+  inputs: { data: new Float32Array([1, 2, 3, 4]) },
+  outputs: { result: 4 },
 });
-// result.result → Float32Array of EMA values
+console.log(result.result); // Float32Array [2, 4, 6, 8]
 ```
-
-**Available proxies inside the function:**
-
-| Proxy         | Meaning                           |
-|---------------|-----------------------------------|
-| `data.value`  | Current element (maps to `input[i]`) |
-| `data.index`  | Current index (integer)           |
-| `data.i`      | Same as `data.index`              |
 
 ### Multi-Op Pipelines
 
-Register multiple operations on a single GPU instance:
+Register multiple operations and switch between them:
 
 ```js
-import { createGPUPipeline } from 'sewt';
+import { createGPUPipeline } from 'thread';
 
 const gpu = createGPUPipeline([
-  ['ema',    (data, { alpha }) => data.value * alpha],
   ['double', (data) => data.value * 2],
   ['negate', (data) => -data.value],
-  ['sqrt',   (data) => Math.sqrt(Math.abs(data.value))],
+  ['sqrt',   (data) => Math.sqrt(data.value)],
 ]);
 
-// Run any of them
-await gpu.run('ema', { inputs: { data }, uniforms: { alpha: new Float32Array([0.5]) }, outputs: { result: 5 } });
-await gpu.run('double', { inputs: { data }, outputs: { result: 5 } });
+// Run any registered op
+await gpu.run('double', { inputs: { data }, outputs: { result: 4 } });
+await gpu.run('sqrt',   { inputs: { data }, outputs: { result: 4 } });
 ```
 
 ### Built-in Operations
 
-57+ operations available out of the box — no shader code needed:
-
-| Category    | Operations |
-|-------------|-----------|
-| Arithmetic  | `add`, `subtract`, `multiply`, `divide`, `power`, `square`, `reciprocal`, `negate` |
-| Math        | `sqrt`, `abs`, `sin`, `cos`, `tan`, `exp`, `log`, `floor`, `ceil`, `round`, `fract`, `sign`, `cbrt` |
-| Comparison  | `min`, `max`, `clamp`, `equal`, `notEqual`, `greaterThan`, `lessThan`, `select` |
-| Interpolation | `lerp`, `normalize`, `scaleOffset` |
-| Signal      | `copy`, `fill` |
-| Reduction   | `reduce_sum`, `reduce_min`, `reduce_max` |
-| Special     | `matmul`, `histogram`, `argmax`, `argmin`, `scan` |
+57+ built-in operations — zero shader code required:
 
 ```js
-import { createGPUReducer } from 'sewt';
+import { GPUCompute } from 'thread';
 
-const gpu = createGPUReducer();
-const data = new Float32Array([1, 2, 3, 4, 5]);
+const gpu = new GPUCompute();
 
-const sum = await gpu.run('reduce_sum', { inputs: { data }, outputs: { result: 5 } });
-console.log(sum.result); // Float32Array([15])
+// Arithmetic
+await gpu.run('multiply', { inputs: { a, b }, outputs: { result: N } });
+await gpu.run('add',      { inputs: { a, b }, outputs: { result: N } });
+await gpu.run('subtract', { inputs: { a, b }, outputs: { result: N } });
+await gpu.run('divide',   { inputs: { a, b }, outputs: { result: N } });
+await gpu.run('power',    { inputs: { a, b }, outputs: { result: N } });
+
+// Math
+await gpu.run('sqrt',  { inputs: { data }, outputs: { result: N } });
+await gpu.run('abs',   { inputs: { data }, outputs: { result: N } });
+await gpu.run('sin',   { inputs: { data }, outputs: { result: N } });
+await gpu.run('exp',   { inputs: { data }, outputs: { result: N } });
+await gpu.run('log',   { inputs: { data }, outputs: { result: N } });
+
+// Comparison
+await gpu.run('clamp', { inputs: { data }, uniforms: { min, max }, outputs: { result: N } });
+await gpu.run('lerp',  { inputs: { a, b }, uniforms: { t }, outputs: { result: N } });
+
+// Aggregation
+await gpu.run('reduce_sum', { inputs: { data }, outputs: { result: N } });
+await gpu.run('reduce_max', { inputs: { data }, outputs: { result: N } });
+await gpu.run('reduce_min', { inputs: { data }, outputs: { result: N } });
+
+// Matrix
+await gpu.run('matmul', { inputs: { A, B }, uniforms: { M, N, K }, outputs: { C } });
 ```
 
 ### Pipeline Chaining
 
-Chain operations sequentially — each step's output feeds the next:
+Chain multiple GPU operations without copying data back to the CPU:
 
 ```js
-import { GPUCompute } from 'sewt';
-
 const gpu = new GPUCompute();
-gpu.define('ema', (data, { alpha }) => data.value * alpha);
-gpu.define('double', (data) => data.value * 2);
+gpu.define('scale', (data, { factor }) => data.value * factor);
+gpu.define('offset', (data, { bias }) => data.value + bias);
 
-// Chain API
-const chain = gpu.pipe()
-  .add('ema', { inputs: { data: prices }, uniforms: { alpha: new Float32Array([0.3]) } })
-  .add('double');
+const chain = gpu.pipe('scale', 4)
+  .run({ data: new Float32Array([1, 2, 3, 4]) }, { factor: new Float32Array([2]) })
+  .pipe('offset', 4)
+  .run({}, { bias: new Float32Array([10]) });
 
-const output = await chain.result();
+const result = await chain.result();
+// [12, 14, 16, 18]
 ```
 
 ### Fluent Data Pipelines
 
-Carry data through a chain with named methods (Proxy-based):
+Use named methods for a fluent API:
 
 ```js
 const gpu = new GPUCompute();
-gpu.define('ema', (data, { alpha }) => data.value * alpha);
-gpu.define('double', (data) => data.value * 2);
+gpu.define('normalize', (data, { mean, std }) => (data.value - mean) / std);
+gpu.define('clamp', (data, { min, max }) => Math.min(Math.max(data.value, min), max));
 
-// Data-carrying chain — data flows automatically
-const output = await gpu.pipe(new Float32Array([1, 2, 3]))
-  .ema({ alpha: 0.3 })
-  .double()
+const pipeline = gpu.pipe('normalize', 1000)
+  .normalize({ mean: new Float32Array([50]), std: new Float32Array([15]) })
+  .clamp({ min: new Float32Array([0]), max: new Float32Array([100]) })
   .result();
+
+const normalized = await pipeline;
 ```
 
 ### Map (Parallel Transform)
 
-Apply a function to every element in parallel on the GPU:
+Apply a function to every element in parallel:
 
 ```js
 const gpu = new GPUCompute();
-const result = await gpu.map(
-  new Float32Array([1, 4, 9, 16]),
-  (x) => Math.sqrt(x)
-);
-// result → Float32Array([1, 2, 3, 4])
+const data = new Float32Array(1_000_000);
+
+// Parallel map — runs on GPU
+const result = await gpu.map(data, (x) => x * x + 1);
 ```
 
 ### Reductions
 
-Sum, min, max over large arrays using GPU-accelerated parallel reduction:
+Sum, min, max across large datasets:
 
 ```js
-import { createGPUReducer } from 'sewt';
+import { createGPUReducer } from 'thread';
 
 const gpu = createGPUReducer();
-const data = new Float32Array(Array.from({ length: 1_000_000 }, () => Math.random()));
+const data = new Float32Array(1_000_000);
 
-const sum = await gpu.run('reduce_sum', { inputs: { data }, outputs: { result: 1_000_000 } });
-const max = await gpu.run('reduce_max', { inputs: { data }, outputs: { result: 1_000_000 } });
-const min = await gpu.run('reduce_min', { inputs: { data }, outputs: { result: 1_000_000 } });
+const sum = await gpu.run('reduce_sum', { inputs: { data }, outputs: { result: 1 } });
+const max = await gpu.run('reduce_max', { inputs: { data }, outputs: { result: 1 } });
+const min = await gpu.run('reduce_min', { inputs: { data }, outputs: { result: 1 } });
+
+console.log(`Sum: ${sum.result[0]}, Min: ${min.result[0]}, Max: ${max.result[0]}`);
 ```
 
 ### Profiling & Auto-Tuning
 
+Measure GPU performance and auto-tune workgroup size:
+
 ```js
 const gpu = new GPUCompute();
-gpu.define('myOp', (data) => data.value * 2);
 
-// Profile a multi-step pipeline
-const profile = await gpu.profile([
-  { name: 'myOp', input: { inputs: { data: new Float32Array(1024) }, outputs: { result: 1024 } } },
-]);
-console.log(profile.steps);  // [{ name: 'myOp', ms: 0.42 }]
-console.log(profile.totalMs); // 0.42
-
-// Auto-tune workgroup size
-const { optimal, results } = await gpu.autoTune('myOp', {
-  inputs: { data: new Float32Array(1024) },
+// Profile a single op
+const profile = await gpu.profile('multiply', {
+  inputs: { a: new Float32Array(1024), b: new Float32Array(1024) },
   outputs: { result: 1024 },
 });
-console.log(`Optimal workgroup size: ${optimal}`);
+console.log(profile); // { avg: 0.12, min: 0.11, max: 0.15, ... }
+
+// Auto-tune workgroup size
+const optimal = await gpu.autoTune('multiply', {
+  inputs: { a: new Float32Array(1024), b: new Float32Array(1024) },
+  outputs: { result: 1024 },
+});
+console.log(`Optimal workgroup size: ${optimal.workgroupSize}`);
 ```
 
 ---
 
 ## Framework Integration
 
-### Preact / React Hooks
+### Hooks
+
+Lifecycle-bound hooks for Preact/React.  The framework is resolved
+automatically from your `thread.config.js`:
 
 ```jsx
-import { useGPU, useThread, usePool, useGPUMetrics } from 'sewt';
+import { useThread, usePool, useGPU } from 'thread';
 
-// GPU hook — lifecycle-bound with reactive state
-function GPUDemo({ prices }) {
-  const { run, result, loading, error, status } = useGPU();
-
-  return (
-    <div>
-      <p>GPU: {status}</p>
-      <button onClick={() => run('ema', { inputs: { data: prices }, ... })} disabled={loading}>
-        {loading ? 'Computing...' : 'Run EMA'}
-      </button>
-      {error && <p className="error">{error}</p>}
-    </div>
-  );
-}
-
-// Thread hook
-function DataProcessor({ input }) {
-  const { run, result, loading, error } = useThread(
-    (data) => heavyCompute(data),
+// Thread hook — auto-creates and auto-destroys a thread
+function DataProcessor({ data }) {
+  const { run, loading, error, result } = useThread(
+    (items) => items.map((x) => x * 2),
     { timeout: 10_000 }
   );
 
   return (
-    <button onClick={() => run(input)} disabled={loading}>
-      {loading ? 'Processing...' : 'Run'}
-    </button>
+    <div>
+      {loading && <Spinner />}
+      {error && <Error message={error} />}
+      {result && <Results data={result} />}
+      <button onClick={() => run(data)} disabled={loading}>Process</button>
+    </div>
   );
 }
 
-// Pool hook
-function WorkerPool() {
-  const { run, status, metrics } = usePool(4, heavyComputation);
+// Pool hook — metrics update automatically
+function ParallelWorker({ items }) {
+  const { run, status, metrics } = usePool(4, (item) => process(item));
+
   return (
     <div>
-      <p>{status().busy}/4 threads busy</p>
+      <button onClick={() => items.forEach((item) => run(item))}>Process all</button>
+      <p>{status().busy} threads busy</p>
       <p>Avg: {metrics.avg?.toFixed(1)}ms</p>
+    </div>
+  );
+}
+
+// GPU hook — reactive GPU state
+function GPUDashboard() {
+  const { run, result, loading, status } = useGPU();
+
+  return (
+    <div>
+      <p>GPU: {status}</p>
+      <button onClick={() => run('multiply', data1, data2)} disabled={loading}>
+        {loading ? 'Computing...' : 'Run GPU'}
+      </button>
+      {result && <pre>{JSON.stringify(Array.from(result))}</pre>}
     </div>
   );
 }
 ```
 
-### Zustand Adapter
+### Adapters
+
+Bind threads/GPUs to your state manager.  Results flow automatically:
 
 ```js
 import { create } from 'zustand';
-import { createGPUBinder } from 'sewt';
+import { createThread, createZustandBinder } from 'thread';
 
+// Zustand store
 const useStore = create((set) => ({
-  result: null,
-  loading: false,
+  data: null,
   error: null,
-  setData: (data) => set({ result: data, loading: false }),
-  setError: (err) => set({ error: err, loading: false }),
-  setLoading: () => set({ loading: true, error: null }),
+  setData: (data) => set({ data, error: null }),
+  setError: (error) => set({ error }),
 }));
 
-const binder = createGPUBinder(gpu, useStore, 'setData', {
+// Thread + adapter
+const thread = createThread((query) => db.query(query));
+const binder = createZustandBinder(thread, useStore, 'setData', {
   errorAction: 'setError',
 });
 
-await binder.run('ema', { inputs: { data: prices }, ... });
-// useStore.getState().result is updated automatically
-```
-
-### Preact Signals Adapter
-
-```js
-import { signal } from '@preact/signals';
-import { createGPUSignalBinder } from 'sewt';
-
-const dataSignal = signal(null);
-const errorSignal = signal(null);
-const loadingSignal = signal(false);
-
-const binder = createGPUSignalBinder(gpu, dataSignal, {
-  errorSignal,
-  loadingSignal,
-});
-
-await binder.run('ema', { inputs: { data: prices }, ... });
-console.log(dataSignal.value); // Float32Array result
-```
-
-### Generic Store Adapter
-
-Works with MobX, Redux, Vue refs, Svelte stores, or plain `setState`:
-
-```js
-import { createGPUStoreBinder } from 'sewt';
-
-const binder = createGPUStoreBinder(gpu, setData, {
-  onError: (err) => console.error(err),
-  onMetrics: (snap) => updateDashboard(snap),
-});
-
-await binder.run('ema', { inputs: { data: prices }, ... });
+// Every run() result flows to the store
+await binder.run('SELECT * FROM users');
+// → useStore.getState().data is now the result
 ```
 
 ---
 
 ## Error Handling
 
-All errors extend `ThreadError`. Catch the base class for generic handling, or catch specific subclasses:
-
 ```js
 import {
-  ThreadError, ThreadTimeoutError, ThreadAbortError,
+  ThreadError,
+  ThreadTimeoutError,
+  ThreadAbortError,
+  ThreadTerminatedError,
+  ThreadHealthError,
+  ThreadDependencyError,
   GPUComputeError,
-} from 'sewt';
+} from 'thread';
 
 try {
-  await gpu.run('myOp', input);
+  await thread.run(data);
 } catch (err) {
-  if (err instanceof GPUComputeError) {
-    console.error(`GPU failed: ${err.message}`);
-    if (err.cause) console.error('Original:', err.cause);
-  } else if (err instanceof ThreadTimeoutError) {
-    console.error('Task took too long');
-  } else if (err instanceof ThreadError) {
-    console.error('Worker error:', err.message);
+  if (err instanceof ThreadTimeoutError) {
+    console.error('Task timed out');
+  } else if (err instanceof ThreadAbortError) {
+    console.error('Task was aborted');
+  } else if (err instanceof GPUComputeError) {
+    console.error('GPU failed:', err.message);
   } else {
-    throw err; // re-throw non-sewt errors
+    throw err; // re-throw non-thread errors
   }
 }
 ```
@@ -551,7 +798,13 @@ import type {
   // Common
   MetricsSnapshot,
   ThreadEventName,
-} from 'sewt/types';
+  // Config
+  threadConfig,
+  threadGPUConfig,
+  threadThreadConfig,
+  threadPoolConfig,
+  threadDevConfig,
+} from 'thread/types';
 ```
 
 ---
@@ -560,10 +813,12 @@ import type {
 
 ### 1. Financial Data Processing (Real-time EMA)
 
-Compute Exponential Moving Averages on streaming price data using the GPU:
+Compute Exponential Moving Averages on streaming price data using the GPU.
+Processing 1M price ticks that would take seconds on CPU completes in
+milliseconds on GPU:
 
 ```js
-import { createGPUOp } from 'sewt';
+import { createGPUOp } from 'thread';
 
 const gpu = createGPUOp('ema', (data, { alpha }) =>
   data.value * alpha + data.index * (1 - alpha)
@@ -580,10 +835,11 @@ const ema = await gpu.run('ema', {
 
 ### 2. Image Processing Pipeline
 
-Process image pixels through a chain of filters:
+Process image pixels through a chain of filters without copying data
+back to the CPU between steps:
 
 ```js
-import { GPUCompute } from 'sewt';
+import { GPUCompute } from 'thread';
 
 const gpu = new GPUCompute();
 gpu.define('grayscale', (data) => data.value * 0.299 + data.value * 0.587 + data.value * 0.114);
@@ -599,10 +855,11 @@ const output = await gpu.pipe(pixelData)
 
 ### 3. Scientific Computing — Matrix Multiply
 
-Multiply two matrices on the GPU:
+Multiply two matrices on the GPU.  The built-in `matmul` op handles
+the tiling and parallel reduction automatically:
 
 ```js
-import { GPUCompute } from 'sewt';
+import { GPUCompute } from 'thread';
 
 const gpu = new GPUCompute();
 const A = new Float32Array([1, 2, 3, 4, 5, 6]); // 2x3
@@ -622,10 +879,11 @@ const result = await gpu.run('matmul', {
 
 ### 4. Data Analytics — Histogram & Statistics
 
-Build a histogram and find extremes in sensor data:
+Build a histogram and find extremes in sensor data.  Three GPU passes
+process millions of data points in parallel:
 
 ```js
-import { createGPUReducer } from 'sewt';
+import { createGPUReducer } from 'thread';
 
 const gpu = createGPUReducer();
 const sensorData = new Float32Array(sensorReadings);
@@ -640,10 +898,11 @@ const mean = sum.result[0] / sensorData.length;
 
 ### 5. Parallel File Processing (Thread Pool)
 
-Process thousands of files across multiple workers:
+Process thousands of files across multiple workers.  The pool
+automatically distributes work and handles failures:
 
 ```js
-import { createPool } from 'sewt';
+import { createPool } from 'thread';
 
 const pool = createPool(8, async (filePath) => {
   const text = await fetch(filePath).then(r => r.text());
@@ -658,13 +917,14 @@ const results = await Promise.all(
 console.log(`Processed ${results.length} files`);
 ```
 
-### 6. Real-Time Dashboard (Preact + Zustand)
+### 6. Real-Time Dashboard (React + Zustand)
 
-Bind GPU compute results to a Zustand store for reactive UI updates:
+Bind GPU compute results to a Zustand store for reactive UI updates.
+The adapter handles the bridge between GPU and React state:
 
 ```jsx
 import { create } from 'zustand';
-import { createGPUOp, createGPUBinder } from 'sewt';
+import { createGPUOp, createGPUBinder } from 'thread';
 
 const useStore = create((set) => ({
   metrics: null,
@@ -693,10 +953,11 @@ function Dashboard() {
 
 ### 7. WebGPU + CPU Fallback (Universal)
 
-Gracefully fall back to CPU when WebGPU is unavailable:
+Gracefully fall back to CPU when WebGPU is unavailable.  Works on any
+device — GPU if available, CPU otherwise:
 
 ```js
-import { createGPUWithFallback } from 'sewt';
+import { createGPUWithFallback } from 'thread';
 
 const gpu = createGPUWithFallback(
   `@compute @workgroup_size(256) fn main(...) { ... }`,
@@ -714,6 +975,40 @@ const result = await gpu.computeWithFallback({
   inputs: { data: new Float32Array([1, 2, 3]) },
   outputBuffers: { result: 3 },
 });
+```
+
+### 8. Search Engine — Parallel Indexing (React + Pool)
+
+Build a search index by processing documents in parallel across a thread
+pool, with real-time progress in the UI:
+
+```jsx
+import { createPool, usePool, usePoolMetrics } from 'thread';
+
+// Create pool outside component (shared across renders)
+const indexPool = createPool(4, async (doc) => {
+  const tokens = tokenize(doc.content);
+  const embeddings = await computeEmbeddings(tokens);
+  return { id: doc.id, tokens, embeddings };
+});
+
+function SearchIndexer({ documents }) {
+  const { run, status } = usePool(indexPool);
+  const metrics = usePoolMetrics(indexPool, 500);
+
+  const handleIndex = () => {
+    documents.forEach((doc) => run(doc));
+  };
+
+  return (
+    <div>
+      <button onClick={handleIndex}>Index {documents.length} docs</button>
+      <p>{status().busy}/{status().total} workers busy</p>
+      <p>{metrics.count}/{documents.length} indexed</p>
+      <p>{metrics.throughput?.toFixed(0)} docs/sec</p>
+    </div>
+  );
+}
 ```
 
 ---
@@ -747,7 +1042,7 @@ const result = await gpu.computeWithFallback({
 | `createGPUReducer(opts)` | GPU ready for reductions |
 | `createGPUWithFallback(shader, fn, opts)` | GPU with CPU fallback |
 
-### Hooks (Preact / React)
+### Hooks
 
 | Hook | Description |
 |------|-------------|
@@ -774,11 +1069,19 @@ const result = await gpu.computeWithFallback({
 | `createGPUSignalBinder(gpu, signal, opts)` | Bind GPU → Signal |
 | `createGPUStoreBinder(gpu, setter, opts)` | Bind GPU → any setter |
 
+### Config
+
+| Function | Description |
+|----------|-------------|
+| `defineConfig(config)` | Create a validated, frozen config object |
+| `getConfig()` | Get the resolved config (cached) |
+| `setConfig()` | Clear caches and force re-resolution |
+
 ### Errors
 
 | Error | When |
 |-------|------|
-| `ThreadError` | Base class for all threats errors |
+| `ThreadError` | Base class for all threads errors |
 | `ThreadTimeoutError` | Task exceeded its timeout |
 | `ThreadAbortError` | Task was aborted |
 | `ThreadTerminatedError` | Thread/pool was terminated |

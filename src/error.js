@@ -1,7 +1,7 @@
 /**
- * @file Error hierarchy for the threat module.
+ * @file Error hierarchy for the thread module.
  *
- * Every error in the threat system extends {@link ThreadError}, so a single
+ * Every error in the thread system extends {@link ThreadError}, so a single
  * `catch (e) { if (e instanceof ThreadError) }` block handles them all.
  * Use the more specific subclasses to differentiate timeout, abort,
  * termination, health, and dependency failures.
@@ -29,7 +29,7 @@
  *   } else if (err instanceof ThreadError) {
  *     console.error('Worker error:', err.message);
  *   } else {
- *     throw err; // re-throw non-threat errors
+ *     throw err; // re-throw non-thread errors
  *   }
  * }
  * ```
@@ -44,8 +44,8 @@
 /**
  * Base error class for all thread-related issues.
  *
- * This is the **parent** of every error the threat module can throw.
- * Catching `ThreadError` lets you handle any threat-specific failure in
+ * This is the **parent** of every error the thread module can throw.
+ * Catching `ThreadError` lets you handle any thread-specific failure in
  * one place; catching the subclasses lets you respond to specific failure
  * modes.
  *
@@ -58,8 +58,8 @@
  *   await thread.run(data);
  * } catch (err) {
  *   if (err instanceof ThreadError) {
- *     // any threat error – safe to handle generically
- *     console.error(`[threat] ${err.name}: ${err.message}`);
+ *     // any thread error – safe to handle generically
+ *     console.error(`[thread] ${err.name}: ${err.message}`);
  *   }
  * }
  * ```

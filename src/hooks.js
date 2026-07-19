@@ -1,12 +1,12 @@
 /**
- * @file Preact / React hooks for the threat module.
+ * @file Framework-agnostic hooks for the thread module.
  *
  * These hooks manage thread and pool lifecycles automatically – threads
  * are created on mount and terminated on unmount.  They also provide
  * reactive state for metrics, loading, and errors.
  *
- * Works with **Preact** (`preact/hooks`) and **React** (`react/hooks`)
- * since their hook APIs are identical.
+ * The framework (Preact, React, etc.) is resolved at load time via the
+ * thread config system.  No hardcoded framework dependency.
  *
  * @example
  * ```jsx
@@ -37,9 +37,12 @@
  * @module hooks
  */
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "preact/hooks";
+import { getHooks } from './config/index.js';
 import { Thread } from "./thread.js";
 import { ThreadPool } from "./pool.js";
+
+// Resolve framework hooks at module load time (top-level await)
+const { useState, useEffect, useRef, useCallback, useMemo } = await getHooks();
 
 // ---------------------------------------------------------------------------
 // useThread

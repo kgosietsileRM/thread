@@ -1,5 +1,5 @@
 /**
- * @file Central type definitions for the sewt library.
+ * @file Central type definitions for the thread library.
  *
  * Import these types in TypeScript projects for full editor intellisense:
  *
@@ -32,7 +32,7 @@
  *   // Common
  *   MetricsSnapshot,
  *   ThreadEventName,
- * } from 'sewt/types';
+ * } from 'thread/types';
  * ```
  *
  * @module types
@@ -929,4 +929,426 @@
  * Options for {@link createGPUReducer}.
  *
  * @typedef {GPUComputeOptions} GPUReducerOptions
+ */
+
+// ---------------------------------------------------------------------------
+// Configuration types
+// ---------------------------------------------------------------------------
+
+/**
+ * Top-level thread configuration object.
+ *
+ * Created via {@link defineConfig} in `thread.config.js`.  All fields are
+ * optional — omitted values use built-in defaults.
+ *
+ * The config is **frozen** (immutable) after creation.  Mutating it
+ * has no effect.
+ *
+ * @typedef {Object} threadConfig
+ *
+ * @property {'preact'|'react'|'svelte'|'vue'|'solid'|'angular'|'custom'} [framework='preact']
+ *   UI framework.  Determines which hooks (`useState`, `useEffect`, etc.)
+ *   are imported at module load time.
+ *
+ *   The framework is resolved via dynamic `import()` — no hardcoded
+ *   dependency.  Supported values:
+ *
+ *   | Value | Import path | Status |
+ *   |-------|------------|--------|
+ *   | `'preact'` | `preact/hooks` | Supported |
+ *   | `'react'` | `react` | Supported |
+ *   | `'svelte'` | `svelte/reactivity` | Supported (partial) |
+ *   | `'vue'` | `vue` | Supported (partial) |
+ *   | `'solid'` | `solid-js` | Supported |
+ *   | `'angular'` | — | Coming soon |
+ *   | `'custom'` | — | User provides `customHookSource` |
+ *
+ * @property {'zustand'|'signals'|'redux'|'jotai'|'mobx'|'vanilla'|'custom'} [stateManager='zustand']
+ *   State manager.  Determines which adapter constructors are available
+ *   for binding threads/GPUs to your store.
+ *
+ *   | Value | Adapter type | Thread adapter | GPU adapter |
+ *   |-------|-------------|---------------|-------------|
+ *   | `'zustand'` | action | `createZustandBinder` | `createGPUBinder` |
+ *   | `'signals'` | signal | `createSignalBinder` | `createGPUSignalBinder` |
+ *   | `'redux'` | setter | `createStoreBinder` | `createGPUStoreBinder` |
+ *   | `'jotai'` | setter | `createStoreBinder` | `createGPUStoreBinder` |
+ *   | `'mobx'` | setter | `createStoreBinder` | `createGPUStoreBinder` |
+ *   | `'vanilla'` | setter | `createStoreBinder` | `createGPUStoreBinder` |
+ *   | `'custom'` | — | User provides `customAdapter` | — |
+ *
+ * @property {Function|null} [customHookSource=null]
+ *   Custom hook source function.  When `framework: 'custom'`, this
+ *   function is called and must return an object with:
+ *   `{ useState, useEffect, useRef, useCallback, useMemo }`.
+ *
+ *   @example
+ *   ```js
+ *   customHookSource: async () => {
+ *     const mod = await import('my-framework/hooks');
+ *     return {
+ *       useState: mod.useState,
+ *       useEffect: mod.useEffect,
+ *       useRef: mod.useRef,
+ *       useCallback: mod.useCallback,
+ *       useMemo: mod.useMemo,
+ *     };
+ *   }
+ *   ```
+ *
+ * @property {Function|null} [customAdapter=null]
+ *   Custom adapter factory.  When `stateManager: 'custom'`, this
+ *   function receives `(instance, store, action, options)` and must
+ *   return `{ run: Function, destroy: Function }`.
+ *
+ *   @example
+ *   ```js
+ *   customAdapter: (instance, store, action) => ({
+ *     run: async (...args) => {
+ *       const result = await instance.run(...args);
+ *       store.dispatch({ type: action, payload: result });
+ *     },
+ *     destroy: () => {},
+ *   })
+ *   ```
+ *
+ * @property {threadGPUConfig} [gpu={}]
+ *   GPU compute defaults.  Applied to all `GPUCompute` instances created
+ *   after the config is loaded.
+ *
+ * @property {threadThreadConfig} [thread={}]
+ *   Thread defaults.  Applied to all threads created via factory functions.
+ *
+ * @property {threadPoolConfig} [pool={}]
+ *   Pool defaults.  Applied to all thread pools created via factory functions.
+ *
+ * @property {threadDevConfig} [dev={}]
+ *   Development options.  Controls logging, metrics, and debugging.
+ *
+ * @example
+ * ```js
+ * // thread.config.js
+ * import { defineConfig } from 'thread/config';
+ *
+ * export default defineConfig({
+ *   framework: 'react',
+ *   stateManager: 'zustand',
+ *   gpu: {
+ *     workgroupSize: 256,
+ *     powerPreference: 'high-performance',
+ *   },
+ *   thread: { timeout: 30_000 },
+ *   pool: { autoRestart: true },
+ *   dev: { log: true },
+ * });
+ * ```
+ */
+
+/**
+ * GPU compute configuration section.
+ *
+ * These defaults are applied to all `GPUCompute` instances created
+ * after the config is loaded.  Individual instances can override
+ * these via their constructor options.
+ *
+ * @typedef {Object} threadGPUConfig
+ *
+ * @property {number} [workgroupSize=256]
+ *   Workgroup size for compute shaders.  Must match the
+ *   `@workgroup_size(N)` declaration in your WGSL shaders.
+ *   Higher values use more GPU resources but may improve throughput
+ *   for large datasets.
+ *
+ * @property {number} [maxBufferSize=268435456]
+ *   Maximum buffer size in bytes (default 256 MB).  Buffers
+ *   exceeding this limit are rejected.  Increase for large datasets.
+ *
+ * @property {string} [entryPoint='main']
+ *   Shader entry point function name.  Must match the function
+ *   name in your WGSL shader (e.g. `@compute @workgroup_size(256) fn main(…)`)
+ *
+ * @property {'low-power'|'high-performance'} [powerPreference='high-performance']
+ *   GPU power preference.  `'high-performance'` uses the discrete GPU
+ *   if available.  `'low-power'` uses the integrated GPU.
+ *
+ * @property {Function|null} [cpuFallback=null]
+ *   CPU fallback function.  Called with the compute input when WebGPU
+ *   is unavailable or the GPU fails.  Useful for development on
+ *   machines without WebGPU support.
+ *
+ * @property {Object} [adapterOptions={}]
+ *   Options passed to `navigator.gpu.requestAdapter()`.  Use this
+ *   to select a specific GPU adapter.
+ *
+ * @property {string|null} [shader=null]
+ *   Default WGSL compute shader source.  Optional if you only use
+ *   `run()` with built-in ops.
+ *
+ * @example
+ * ```js
+ * gpu: {
+ *   workgroupSize: 256,           // Match @workgroup_size(256) in shaders
+ *   maxBufferSize: 512 * 1024 * 1024,  // 512 MB for large datasets
+ *   powerPreference: 'low-power', // Prefer integrated GPU
+ *   cpuFallback: (input) => {     // Fallback for no WebGPU
+ *     return input.inputs.data.reduce((a, b) => a + b, 0);
+ *   },
+ * }
+ * ```
+ */
+
+/**
+ * Thread configuration section.
+ *
+ * These defaults are applied to all threads created via factory
+ * functions (`createThread`, `createPool`, `createWorker`, etc.).
+ * Individual threads can override these via their options.
+ *
+ * @typedef {Object} threadThreadConfig
+ *
+ * @property {number} [timeout=30000]
+ *   Task timeout in milliseconds.  If a task runs longer than this,
+ *   it is automatically aborted and a `ThreadTimeoutError` is thrown.
+ *
+ * @property {number} [idleTimeout]
+ *   Idle timeout in milliseconds.  If a thread has no tasks for this
+ *   duration, it is automatically terminated.  `undefined` = never idle timeout.
+ *
+ * @property {number} [healthCheckInterval]
+ *   Health check interval in milliseconds.  The pool periodically
+ *   pings each thread to ensure it's responsive.  `undefined` = no health checks.
+ *
+ * @property {number} [healthCheckTimeout]
+ *   Health check timeout in milliseconds.  If a thread doesn't respond
+ *   to a health check within this time, it's considered crashed.
+ *
+ * @property {number} [concurrency]
+ *   Maximum concurrent tasks per thread.  Default is `1` (one task at a time).
+ *
+ * @example
+ * ```js
+ * thread: {
+ *   timeout: 10_000,              // 10 second task timeout
+ *   idleTimeout: 60_000,          // Kill idle threads after 60s
+ *   healthCheckInterval: 5_000,   // Ping threads every 5s
+ *   healthCheckTimeout: 2_000,    // Kill unresponsive threads after 2s
+ * }
+ * ```
+ */
+
+/**
+ * Pool configuration section.
+ *
+ * These defaults are applied to all thread pools created via factory
+ * functions.  Individual pools can override these via their options.
+ *
+ * @typedef {Object} threadPoolConfig
+ *
+ * @property {boolean} [autoRestart=true]
+ *   Automatically restart crashed workers.  When a worker crashes,
+ *   a replacement is spawned and pending tasks are re-queued.
+ *
+ * @property {boolean} [enableStealing=true]
+ *   Enable work-stealing.  Idle threads can steal tasks from busy
+ *   threads' queues, improving load balancing.
+ *
+ * @property {number} [maxSize]
+ *   Maximum number of threads in the pool.  `undefined` = unlimited.
+ *
+ * @property {Function} [keyHasher]
+ *   Function that maps task arguments to an affinity key.  Tasks with
+ *   the same key are routed to the same thread (useful for stateful
+ *   workers).  Default is `JSON.stringify`.
+ *
+ * @example
+ * ```js
+ * pool: {
+ *   autoRestart: true,            // Replace crashed workers
+ *   enableStealing: true,         // Allow work-stealing
+ *   maxSize: 8,                   // Cap at 8 threads
+ *   keyHasher: (args) => args[0]?.id ?? 'default',  // Route by ID
+ * }
+ * ```
+ */
+
+/**
+ * Development configuration section.
+ *
+ * Controls logging, metrics, and debugging features.  These are
+ * typically `false` in production.
+ *
+ * @typedef {Object} threadDevConfig
+ *
+ * @property {boolean} [log=false]
+ *   Forward worker `console.log` messages to the main thread.
+ *   Useful for debugging but noisy in production.
+ *
+ * @property {boolean} [metrics=false]
+ *   Enable metrics collection.  When `true`, thread and pool instances
+ *   track timing, throughput, and error rates.  Has a small performance
+ *   overhead.
+ *
+ * @property {number} [warnOnLongTask=0]
+ *   Warn if a task exceeds N milliseconds.  Set to `0` to disable.
+ *   Useful for finding performance bottlenecks during development.
+ *
+ * @example
+ * ```js
+ * dev: {
+ *   log: true,                    // See worker logs in console
+ *   metrics: true,                // Track performance
+ *   warnOnLongTask: 1_000,        // Warn if task > 1 second
+ * }
+ * ```
+ */
+
+// ---------------------------------------------------------------------------
+// Environment detection types
+// ---------------------------------------------------------------------------
+
+/**
+ * Environment detection result.
+ *
+ * Returned by {@link env} and used internally for cross-platform
+ * compatibility decisions.
+ *
+ * @typedef {Object} threadEnv
+ *
+ * @property {'browser'|'node'|'bun'|'deno'|'edge'|'unknown'} runtime
+ *   Detected JavaScript runtime.
+ *
+ * @property {'main'|'worker'|'service-worker'|'unknown'} context
+ *   Current execution context (main thread vs worker).
+ *
+ * @property {boolean} isBrowser
+ *   `true` if running in a browser environment (including Web Workers).
+ *
+ * @property {boolean} isNode
+ *   `true` if running in Node.js.
+ *
+ * @property {boolean} isBun
+ *   `true` if running in Bun.
+ *
+ * @property {boolean} isDeno
+ *   `true` if running in Deno.
+ *
+ * @property {boolean} isEdge
+ *   `true` if running in an edge runtime (Cloudflare Workers, Vercel Edge).
+ *
+ * @property {boolean} isWorker
+ *   `true` if running in a worker context (not main thread).
+ *
+ * @property {boolean} isMainThread
+ *   `true` if running on the main thread.
+ *
+ * @property {boolean} hasWorker
+ *   `true` if the Worker API is available.
+ *
+ * @property {boolean} hasGPU
+ *   `true` if WebGPU is available.
+ *
+ * @property {boolean} hasFS
+ *   `true` if the `fs` module is available (Node/Bun).
+ *
+ * @property {boolean} hasPath
+ *   `true` if the `path` module is available (Node/Bun).
+ *
+ * @property {boolean} hasMemoryAPI
+ *   `true` if `performance.memory` is available (Chrome).
+ *
+ * @property {boolean} hasBlob
+ *   `true` if `Blob` and `URL.createObjectURL` are available.
+ *
+ * @property {boolean} hasDynamicImport
+ *   `true` if dynamic `import()` is available.
+ *
+ * @property {function(string): any|null} requireModule
+ *   Safely require a Node.js built-in module.  Returns `null` if unavailable.
+ *
+ * @property {function(): string} getCwd
+ *   Get the current working directory across environments.
+ *
+ * @property {function(string): string|null} readFileSync
+ *   Read a file synchronously.  Returns `null` in browser environments.
+ *
+ * @property {function(string): boolean} fileExists
+ *   Check if a file exists on disk.
+ *
+ * @property {function(...string): string} resolvePath
+ *   Resolve a file path relative to the current working directory.
+ */
+
+/**
+ * GPU environment detection result.
+ *
+ * Returned by {@link gpuEnv} and used for GPU availability checks.
+ *
+ * @typedef {Object} threadGPUEnv
+ *
+ * @property {Promise<boolean>} available
+ *   Async GPU availability check (cached after first call).
+ *
+ * @property {boolean} sync
+ *   Synchronous check for `navigator.gpu` presence.
+ *
+ * @property {string} runtime
+ *   Current runtime identifier.
+ *
+ * @property {boolean} isBrowser
+ *   `true` if in a browser environment.
+ *
+ * @property {boolean} isNode
+ *   `true` if in Node.js or Bun.
+ *
+ * @property {boolean} isDeno
+ *   `true` if in Deno.
+ *
+ * @property {function(Object=): Promise<GPUAdapter|null>} requestAdapter
+ *   Request a GPU adapter from the current environment.
+ *
+ * @property {function(Object=): Promise<{adapter: GPUAdapter, device: GPUDevice}|null>} requestDevice
+ *   Request a GPU device (adapter + device).
+ *
+ * @property {function(): Promise<Object>} info
+ *   Get diagnostic GPU information.
+ */
+
+/**
+ * Worker info result.
+ *
+ * Returned by {@link workerInfo} to describe Worker support.
+ *
+ * @typedef {Object} threadWorkerInfo
+ *
+ * @property {boolean} supported
+ *   `true` if Worker creation is supported.
+ *
+ * @property {'browser'|'node'|'bun'|'deno'|'none'} type
+ *   Type of Worker support detected.
+ *
+ * @property {string} details
+ *   Human-readable description of the Worker implementation.
+ */
+
+/**
+ * Worker interface (cross-platform).
+ *
+ * Unified API that works across browser, Node.js, Bun, and Deno.
+ *
+ * @typedef {Object} threadWorkerInterface
+ *
+ * @property {function(MessageEvent): void} onmessage
+ *   Message handler (set by the host).
+ *
+ * @property {function(ErrorEvent): void} onerror
+ *   Error handler (set by the host).
+ *
+ * @property {function(MessageEvent): void} onmessageerror
+ *   Message error handler (set by the host).
+ *
+ * @property {function(*, Transferable[]=): void} postMessage
+ *   Post a message to the worker.
+ *
+ * @property {function(): void} terminate
+ *   Terminate the worker and clean up resources.
  */

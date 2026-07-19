@@ -1,5 +1,5 @@
 /**
- * @file WebGPU compute shader integration for the threat module.
+ * @file WebGPU compute shader integration for the thread module.
  *
  * `GPUCompute` wraps the WebGPU API to provide a high-level interface
  * for running compute shaders.  It manages device acquisition, buffer
@@ -8,22 +8,23 @@
  * @module gpu
  */
 
-import { Metrics } from './metrix.js';
-import { GPUComputeError } from './error.js';
+import { Metrics } from '../metrix.js';
+import { GPUComputeError } from '../error.js';
 import { buildShader, BUILT_IN_OPS, SPECIAL_OPS } from './shaders.js';
 import {
   OUTPUT_TYPES, resolveType, box, boxAll, isOldRunFormat,
   transpileExpression, transpileDefineBody, jsToWgsl, getParamNames,
-} from './gpu-helpers.js';
-import { PipelineChain, DataPipelineChain } from './gpu-chains.js';
-import { runSpecial } from './gpu-special.js';
+} from './helpers.js';
+import { PipelineChain, DataPipelineChain } from './chains.js';
+import { runSpecial } from './special.js';
+import { gpuEnv, requestGPUAdapter } from './env.js';
 
 // Re-export everything from sub-modules for backward compatibility
 export { OUTPUT_TYPES, resolveType, box, boxAll, isOldRunFormat,
-  transpileExpression, transpileDefineBody, jsToWgsl, getParamNames } from './gpu-helpers.js';
-export { PipelineChain, DataPipelineChain } from './gpu-chains.js';
+  transpileExpression, transpileDefineBody, jsToWgsl, getParamNames } from './helpers.js';
+export { PipelineChain, DataPipelineChain } from './chains.js';
 export { runSpecial, runMatmul, buildMatmulShader, runReduce, getReduceBody,
-  runHistogram, runArgMaxMin, runScan } from './gpu-special.js';
+  runHistogram, runArgMaxMin, runScan } from './special.js';
 
 // ---------------------------------------------------------------------------
 // GPUCompute class
@@ -33,7 +34,7 @@ export { runSpecial, runMatmul, buildMatmulShader, runReduce, getReduceBody,
  * WebGPU compute shader executor.
  *
  * Manages the full GPU lifecycle: device, pipelines, buffers, and
- * dispatch.  Designed to integrate with the threat module's metrics
+ * dispatch.  Designed to integrate with the thread module's metrics
  * and error patterns.
  */
 export class GPUCompute {
@@ -47,7 +48,7 @@ export class GPUCompute {
    * Device acquisition is **lazy** — it happens on the first call to
    * {@link GPUCompute.compute} (or eagerly via {@link GPUCompute.init}).
    *
-   * @param {import('./types.js').GPUComputeOptions} options
+   * @param {import('../types.js').GPUComputeOptions} options
    * @throws {TypeError} If `options.shader` is missing or not a string.
    */
   constructor(options = {}) {
@@ -86,7 +87,7 @@ export class GPUCompute {
     this._cpuFallback = options.cpuFallback || null;
 
     /** @type {boolean} Whether WebGPU is available. */
-    this._available = typeof navigator !== 'undefined' && !!navigator.gpu;
+    this._available = gpuEnv.sync || (typeof navigator !== 'undefined' && !!navigator.gpu);
 
     /** @type {'idle'|'running'|'error'|'unavailable'} Current status. */
     this._status = this._available ? 'idle' : 'unavailable';
@@ -131,17 +132,22 @@ export class GPUCompute {
 
   /** @private */
   async _doInit() {
+    // Re-check availability asynchronously (some runtimes need async check)
     if (!this._available) {
-      this._status = 'unavailable';
-      throw new GPUComputeError(
-        'WebGPU is not available in this environment. ' +
-        'Ensure navigator.gpu exists and the browser supports WebGPU.',
-      );
+      const asyncAvailable = await gpuEnv.available;
+      if (!asyncAvailable) {
+        this._status = 'unavailable';
+        throw new GPUComputeError(
+          'WebGPU is not available in this environment. ' +
+          'Ensure your runtime supports WebGPU (browser, Node.js with bindings, or Deno).',
+        );
+      }
+      this._available = true;
     }
 
     let adapter;
     try {
-      adapter = await navigator.gpu.requestAdapter({
+      adapter = await requestGPUAdapter({
         powerPreference: this._powerPreference,
         ...this._adapterOptions,
       });
@@ -281,7 +287,7 @@ export class GPUCompute {
    * Register a compute operation from a simple declaration or JS function.
    *
    * @param {string} name - Operation name.
-   * @param {import('./types.js').OpDeclaration|Function} declarationOrFn
+   * @param {import('../types.js').OpDeclaration|Function} declarationOrFn
    */
   define(name, declarationOrFn) {
     if (typeof name !== 'string' || !name) {
@@ -904,7 +910,7 @@ export class GPUCompute {
   /**
    * Execute a compute pass on the GPU.
    *
-   * @param {import('./types.js').GPUComputeInput} input
+   * @param {import('../types.js').GPUComputeInput} input
    * @returns {Promise<Object<string, TypedArray>>}
    */
   async compute(input) {
@@ -981,7 +987,7 @@ export class GPUCompute {
   // computeMany / computeSequential / computeWithFallback
   // -----------------------------------------------------------------------
 
-  /** @param {import('./types.js').GPUComputeInput[]} batches */
+  /** @param {import('../types.js').GPUComputeInput[]} batches */
   async computeMany(batches, opts = {}) {
     if (!Array.isArray(batches)) throw new TypeError('batches must be an array');
     const { onProgress = null } = opts;
@@ -1024,7 +1030,7 @@ export class GPUCompute {
     return carriedOutputs;
   }
 
-  /** @param {import('./types.js').GPUComputeInput} input */
+  /** @param {import('../types.js').GPUComputeInput} input */
   async computeWithFallback(input, fallbackOverride = null) {
     if (!this._available) {
       const fb = fallbackOverride || this._cpuFallback;
@@ -1114,7 +1120,7 @@ export class GPUCompute {
   /** @type {number} */
   get bytesTransferred() { return this._bytesTransferred; }
 
-  /** @type {import('./types.js').MetricsSnapshot} */
+  /** @type {import('../types.js').MetricsSnapshot} */
   get metrics() { return this._metrics.snapshot(); }
 }
 
@@ -1125,7 +1131,7 @@ export class GPUCompute {
 /**
  * Create a GPUCompute instance.
  *
- * @param {import('./types.js').GPUComputeOptions} options
+ * @param {import('../types.js').GPUComputeOptions} options
  * @returns {GPUCompute}
  */
 export function createGPUCompute(options) {
